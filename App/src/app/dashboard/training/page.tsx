@@ -49,7 +49,12 @@ const LevelSection = ({ title, color, icon: Icon, items, description, isLocked, 
                 return (
                     <div
                         key={lesson.id}
-                        className="group bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col h-full relative"
+                        className={`group rounded-2xl p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col h-full relative
+                            ${isCompleted
+                                ? 'bg-amber-50 dark:bg-amber-900/10 border-2 border-amber-400 dark:border-amber-600 shadow-amber-100 dark:shadow-none'
+                                : 'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm'
+                            }
+                        `}
                     >
                         {/* Link Wrap */}
                         <Link href={`/dashboard/training/${lesson.slug}`} className="absolute inset-0 z-10" />

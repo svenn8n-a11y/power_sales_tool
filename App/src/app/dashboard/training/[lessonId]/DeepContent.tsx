@@ -19,6 +19,23 @@ export default function DeepContent({ content, selectedDisg }: DeepContentProps)
         }
     }
 
+    // Simple Regex Markdown Formatter to avoid heavy dependencies
+    const formatMarkdown = (text: string) => {
+        if (!text) return '<p class="text-zinc-400 italic">Keine Daten verfügbar.</p>'
+
+        // 1. Bold: **text** -> <strong>text</strong>
+        let html = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+
+        // 2. Lists: - item -> <li class="...">item</li>
+        // Note: We don't wrap in <ul> but use styling to make it look like a list
+        html = html.replace(/^\s*-\s+(.*)$/gm, '<div class="flex gap-2 mb-1"><span class="text-indigo-500 font-bold">•</span><span>$1</span></div>')
+
+        // 3. Line breaks converted to <br> if not list
+        html = html.replace(/\n/g, '<br />')
+
+        return html
+    }
+
     return (
         <div className="space-y-6 mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
@@ -28,9 +45,8 @@ export default function DeepContent({ content, selectedDisg }: DeepContentProps)
                     <Brain className={`w-5 h-5 ${getHeaderColor()}`} />
                     <h3 className="font-bold text-zinc-800 dark:text-zinc-200">Psychologische Analyse</h3>
                 </div>
-                <div className="p-6 prose dark:prose-invert max-w-none prose-sm">
-                    {/* Render Markdown content */}
-                    <div dangerouslySetInnerHTML={{ __html: content.psychology_md || '<p>Keine psychologischen Daten verfügbar.</p>' }} />
+                <div className="p-6 text-zinc-700 dark:text-zinc-300 leading-relaxed">
+                    <div dangerouslySetInnerHTML={{ __html: formatMarkdown(content.psychology_md) }} />
                 </div>
             </div>
 
@@ -40,8 +56,8 @@ export default function DeepContent({ content, selectedDisg }: DeepContentProps)
                     <Target className={`w-5 h-5 ${getHeaderColor()}`} />
                     <h3 className="font-bold text-zinc-800 dark:text-zinc-200">Lösungs-Strategie (Framework)</h3>
                 </div>
-                <div className="p-6 prose dark:prose-invert max-w-none prose-sm">
-                    <div dangerouslySetInnerHTML={{ __html: content.framework_md || '<p>Kein Framework verfügbar.</p>' }} />
+                <div className="p-6 text-zinc-700 dark:text-zinc-300 leading-relaxed">
+                    <div dangerouslySetInnerHTML={{ __html: formatMarkdown(content.framework_md) }} />
                 </div>
             </div>
 
@@ -52,8 +68,8 @@ export default function DeepContent({ content, selectedDisg }: DeepContentProps)
                         <BarChart2 className={`w-5 h-5 ${getHeaderColor()}`} />
                         <h3 className="font-bold text-zinc-800 dark:text-zinc-200">Erfolgs-Metriken</h3>
                     </div>
-                    <div className="p-6 prose dark:prose-invert max-w-none prose-sm">
-                        <div dangerouslySetInnerHTML={{ __html: content.metrics_md }} />
+                    <div className="p-6 text-zinc-700 dark:text-zinc-300 leading-relaxed">
+                        <div dangerouslySetInnerHTML={{ __html: formatMarkdown(content.metrics_md) }} />
                     </div>
                 </div>
             )}
