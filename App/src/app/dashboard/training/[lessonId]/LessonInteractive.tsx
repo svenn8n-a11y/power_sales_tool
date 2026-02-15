@@ -50,7 +50,7 @@ export default function LessonInteractive({ lessonId, userId, disgMatrix, fullCo
             if (useIntentAsAnswer) {
                 return data.intent || "Strategie..."
             } else {
-                return data.wording || "Zitat..."
+                return data.quote || data.wording || "Zitat..."
             }
         }
 
