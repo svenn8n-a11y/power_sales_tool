@@ -1,7 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { LayoutDashboard, BookOpen, Trophy, Settings, LogOut, LifeBuoy, Users, Brain, Book } from 'lucide-react'
+import { LayoutDashboard, BookOpen, Trophy, Settings, LogOut, LifeBuoy, Users, Brain, Book, ShieldAlert } from 'lucide-react'
 import LevelProgress from '@/components/dashboard/LevelProgress'
 import SidebarLinks from '@/components/dashboard/SidebarLinks'
 
