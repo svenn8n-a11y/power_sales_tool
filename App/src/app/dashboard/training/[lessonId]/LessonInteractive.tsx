@@ -38,9 +38,25 @@ export default function LessonInteractive({ lessonId, userId, disgMatrix, fullCo
     const quizOptions = useMemo(() => {
         if (!selectedType || !disgMatrix) return []
 
+        // Content Logic:
+        // Level 1: "Typ erkennen" -> Show Customer Quote (wording)
+        // Level 3+: "Einwand behandeln" -> Show Strategy/Intent (as proxy for answer)
+        const useIntentAsAnswer = level >= 3
+
+        const getAnswerText = (type: string) => {
+            const data = disgMatrix[type]
+            if (!data) return "Keine Daten."
+
+            if (useIntentAsAnswer) {
+                return data.intent || "Strategie..."
+            } else {
+                return data.wording || "Zitat..."
+            }
+        }
+
         const correctAnswer = {
             id: selectedType,
-            text: disgMatrix[selectedType]?.wording || "Fehler: Keine Antwort in DB.",
+            text: getAnswerText(selectedType),
             isCorrect: true,
             type: selectedType
         }
@@ -49,14 +65,14 @@ export default function LessonInteractive({ lessonId, userId, disgMatrix, fullCo
             .filter(t => t !== selectedType)
             .map(t => ({
                 id: t,
-                text: disgMatrix[t]?.wording || "Alternative Antwort...",
+                text: getAnswerText(t),
                 isCorrect: false,
                 type: t
             }))
 
         // Shuffle
         return [correctAnswer, ...wrongAnswers].sort(() => Math.random() - 0.5)
-    }, [selectedType, disgMatrix])
+    }, [selectedType, disgMatrix, level])
 
     // --- HANDLERS ---
 

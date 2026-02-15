@@ -117,12 +117,34 @@ export default async function TrainingPage() {
     const completedLessons = allProgress?.filter(p => p.completed).length || 0
     const totalPoints = allProgress?.reduce((acc, curr) => acc + (curr.score || 0), 0) || 0
 
-    // 4. Manual Grouping (based on P-Numbers / Level)
-    // We assume level column is set by script. If not, we fallback to range check.
-    const level1 = lessons?.filter(l => l.level === 1 || (l.slug >= 'P001' && l.slug <= 'P030')) || []
-    const level2 = lessons?.filter(l => l.level === 2 || (l.slug >= 'P031' && l.slug <= 'P060')) || []
-    const level3 = lessons?.filter(l => l.level === 3 || (l.slug >= 'P061' && l.slug <= 'P100')) || []
-    const level4 = lessons?.filter(l => l.level === 4 || l.slug >= 'P101') || []
+    // 4. Manual Grouping (Robust & Case Insensitive)
+
+    // Helper to clean up junk (e.g. 'batch 1', 'p001' duplicates)
+    // We only want slugs that look like 'p001_...' OR are clearly valid.
+    const validLessons = lessons?.filter(l =>
+        !l.slug.startsWith('batch') &&
+        l.slug.length > 5 // "p001" is 4 chars, "p001_" is 5+. 
+    ) || []
+
+    const level1 = validLessons.filter(l => {
+        const s = l.slug.toUpperCase()
+        return l.level === 1 || (s >= 'P001' && s <= 'P012_Z') // _Z padding to include P012_something
+    })
+
+    const level2 = validLessons.filter(l => {
+        const s = l.slug.toUpperCase()
+        return l.level === 2 || (s >= 'P031' && s <= 'P060_Z')
+    })
+
+    const level3 = validLessons.filter(l => {
+        const s = l.slug.toUpperCase()
+        return l.level === 3 || (s >= 'P061' && s <= 'P100_Z')
+    })
+
+    const level4 = validLessons.filter(l => {
+        const s = l.slug.toUpperCase()
+        return l.level === 4 || s >= 'P101'
+    })
 
     return (
         <div className="max-w-7xl mx-auto pb-20 space-y-12">
@@ -188,24 +210,6 @@ export default async function TrainingPage() {
                 progressMap={progressMap}
                 isLocked={false}
             />
-
-            {/* DEBUG SECTION */}
-            <div className="mt-20 p-8 bg-zinc-100 border border-zinc-300 rounded overflow-auto font-mono text-xs">
-                <h3 className="font-bold mb-2 text-red-600">🛠 DEBUG INFO</h3>
-                <p>Total Lessons: {lessons?.length}</p>
-                <p>Level 1 Count: {level1.length}</p>
-                <p>Level 2 Count: {level2.length}</p>
-                <p>Level 3 Count: {level3.length}</p>
-                <p>Level 4 Count: {level4.length}</p>
-                <div className="mt-4">
-                    <strong>Sample Slugs (First 10):</strong>
-                    <ul className="list-disc pl-4">
-                        {lessons?.slice(0, 10).map(l => (
-                            <li key={l.id}>{l.slug} (Level in DB: {l.level})</li>
-                        ))}
-                    </ul>
-                </div>
-            </div>
 
         </div>
     )
