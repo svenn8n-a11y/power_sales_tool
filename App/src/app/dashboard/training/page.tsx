@@ -1,7 +1,69 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Play, FileText, Mic, HandMetal } from 'lucide-react'
+import { ArrowLeft, Play, CheckCircle, Brain, MessageCircle, HandMetal } from 'lucide-react'
+
+// Helper Component for Level Sections
+const LevelSection = ({ title, color, icon: Icon, items, description, isLocked }: any) => (
+    <div className={`mb-12 ${isLocked ? 'opacity-50 grayscale' : ''}`}>
+        <div className="flex items-center gap-4 mb-6">
+            <div className={`p-3 rounded-xl ${color} text-white shadow-lg`}>
+                <Icon className="w-6 h-6" />
+            </div>
+            <div>
+                <h2 className="text-2xl font-bold text-zinc-800 dark:text-zinc-100 flex items-center gap-2">
+                    {title}
+                    {isLocked && <span className="text-xs bg-zinc-200 text-zinc-500 px-2 py-1 rounded ml-2">🔒 Locked</span>}
+                </h2>
+                <p className="text-zinc-500">{description}</p>
+            </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {items && items.length > 0 ? items.map((lesson: any) => {
+                // const isCompleted = lesson.completed_lessons?.length > 0
+                const isCompleted = false // Temporarily disabled
+                return (
+                    <div
+                        key={lesson.id}
+                        className="group bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col h-full"
+                    >
+                        <div className="flex justify-between items-start mb-4">
+                            <span className={`text-xs font-bold px-3 py-1 rounded-full ${isCompleted ? 'bg-green-100 text-green-700' : 'bg-zinc-100 text-zinc-500'}`}>
+                                {isCompleted ? 'Gelöst ✅' : 'Offen'}
+                            </span>
+                            <span className="text-xs font-mono text-zinc-400">{lesson.slug}</span>
+                        </div>
+
+                        <h3 className="font-bold text-lg mb-2 flex-1">
+                            {lesson.title}
+                        </h3>
+
+                        <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                            {isLocked ? (
+                                <div className="flex items-center gap-2 text-sm text-zinc-500 cursor-not-allowed">
+                                    <span>🔒 Benötigt Level-Up</span>
+                                </div>
+                            ) : (
+                                <Link
+                                    href={`/dashboard/training/${lesson.slug}`}
+                                    className="flex items-center justify-center gap-2 w-full py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg font-bold transition text-sm"
+                                >
+                                    <Play className="w-4 h-4 fill-current" />
+                                    Lektion starten
+                                </Link>
+                            )}
+                        </div>
+                    </div>
+                )
+            }) : (
+                <div className="col-span-full py-8 text-center bg-zinc-50 dark:bg-zinc-900/50 rounded-xl border border-dashed border-zinc-200">
+                    <p className="text-zinc-500 italic">Noch keine Lektionen in diesem Level.</p>
+                </div>
+            )}
+        </div>
+    </div>
+)
 
 export default async function TrainingPage() {
     const supabase = await createClient()
@@ -9,91 +71,92 @@ export default async function TrainingPage() {
 
     if (!user) return redirect('/login')
 
-    // Profil laden für Anpassung
+    // Load User Profile for Level Check
     const { data: profile } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
         .single()
 
-    const varkType = profile?.vark_primary || 'R' // Default: Read
-    const disgType = profile?.disg_primary || 'D' // Default: Dominant
+    // Load all Lessons
+    // REMOVED completed_lessons join for stability
+    const { data: lessons, error: lessonsError } = await supabase
+        .from('lessons')
+        .select('*')
+        .order('title', { ascending: true })
 
-    // Mock Content basierend auf Typ
-    const getContentRecommendation = () => {
-        if (varkType === 'V') return { icon: Play, text: 'Video-Lektion', desc: 'Schau dir die Techniken an.' }
-        if (varkType === 'A') return { icon: Mic, text: 'Audio-Training', desc: 'Hör dir echte Gespräche an.' }
-        if (varkType === 'K') return { icon: HandMetal, text: 'Interaktives Rollenspiel', desc: 'Probier es direkt aus.' }
-        return { icon: FileText, text: 'Lese-Material', desc: 'Lies die Strategie-Details.' }
+    console.log('--- DEEP DEBUG LESSONS ---')
+    if (lessons && lessons.length > 0) {
+        const l = lessons[0]
+        console.log('Sample Lesson:', {
+            id: l.id,
+            slug: l.slug,
+            level: l.level,
+            stage: l.stage,
+            is_locked_check: (!l.stage && !l.level)
+        })
+    } else {
+        console.log('No lessons found in array')
+    }
+    console.log('---------------------')
+
+    // Group lessons by stage
+    // Note: If migration wasn't run, stage/level might be null. We treat null as Objection (Level 3) or Intro (Level 1) depending on fallback logic.
+    // Here we use explicit checks.
+    // Group lessons by stage
+    // Note: If migration wasn't run, stage/level might be null.
+    // KEY FIX: Treat unclassified lessons as Intro (Level 1) so they are unlocked.
+    const stages = {
+        intro: lessons?.filter(l => l.stage === 'intro' || l.level === 1 || (!l.stage && !l.level)) || [], // Fallback here
+        pitch: lessons?.filter(l => l.stage === 'pitch' || l.level === 2) || [],
+        objection: lessons?.filter(l => l.stage === 'objection' || l.level === 3) || [],
+        closing: lessons?.filter(l => l.stage === 'closing' || l.level === 4) || []
     }
 
-    const rec = getContentRecommendation()
-    const Icon = rec.icon
-
-    // Load Lessons
-    const { data: lessons } = await supabase
-        .from('lessons')
-        .select('id, title, slug, category, meta_json')
-        .order('id', { ascending: true })
-
-    const featuredLesson = lessons?.find(l => l.slug.includes('001')) || lessons?.[0]
+    const userLevel = profile?.level || 1
 
     return (
-        <div className="space-y-8 pb-20">
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-white">Dein Trainings-Plan</h1>
-                <p className="mt-2 text-zinc-500">
-                    Maßgeschneidert für deinen
-                    <span className="font-bold text-indigo-600 dark:text-indigo-400"> {varkType}-Lernstil</span> und
-                    <span className="font-bold text-emerald-600 dark:text-emerald-400"> {disgType}-Persönlichkeit</span>.
-                </p>
+        <div className="max-w-7xl mx-auto pb-20">
+            <div className="mb-12">
+                <h1 className="text-3xl font-bold text-zinc-900 dark:text-white mb-2">Training Center 🥋</h1>
+                <p className="text-zinc-500">Meistern Sie die 4 Stufen des Verkaufs.</p>
             </div>
 
-            {/* Featured Lesson */}
-            {featuredLesson && (
-                <div className="relative overflow-hidden rounded-2xl bg-zinc-900 shadow-xl">
-                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/20 to-purple-600/20 mix-blend-overlay"></div>
-                    <div className="relative p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-8">
-                        <div className="space-y-4 max-w-xl">
-                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 text-sm font-medium ring-1 ring-indigo-500/20">
-                                <Icon className="w-4 h-4" />
-                                {rec.text}
-                            </div>
-                            <h2 className="text-3xl font-bold text-white">{featuredLesson.title}</h2>
-                            <p className="text-zinc-300 text-lg">
-                                {featuredLesson.meta_json?.disg_profile || 'Meistere diesen Einwand mit der perfekten Strategie.'}
-                            </p>
-                            <Link href={`/dashboard/training/${featuredLesson.slug}`} className="mt-4 px-6 py-3 bg-white text-zinc-900 rounded-lg font-bold hover:bg-zinc-100 transition flex items-center gap-2 inline-flex">
-                                <Play className="w-5 h-5 fill-current" />
-                                Jetzt Starten
-                            </Link>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <LevelSection
+                title="Level 1: Grundlagen & Mindset"
+                color="bg-emerald-500"
+                icon={Brain}
+                items={stages.intro}
+                description="Wie Sie professionell auftreten und Vertrauen aufbauen."
+                isLocked={false}
+            />
 
-            {/* Modules Grid */}
-            <h2 className="text-xl font-bold mt-12 mb-6">Alle Module ({lessons?.length || 0})</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {lessons?.map((lesson) => (
-                    <Link key={lesson.id} href={`/dashboard/training/${lesson.slug}`} className="group block p-6 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-indigo-500 dark:hover:border-indigo-500 transition cursor-pointer">
-                        <div className="flex items-start justify-between mb-4">
-                            <div className="w-10 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center group-hover:bg-indigo-50 dark:group-hover:bg-indigo-900/20 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">
-                                <span className="font-bold">{lesson.id}</span>
-                            </div>
-                            <span className="text-xs font-bold px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded text-zinc-500">
-                                {lesson.category || 'Basics'}
-                            </span>
-                        </div>
-                        <h3 className="font-semibold text-lg mb-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                            {lesson.title}
-                        </h3>
-                        <p className="text-sm text-zinc-500 line-clamp-2">
-                            {lesson.meta_json?.disg_profile || 'Klicke hier, um das Modul zu starten.'}
-                        </p>
-                    </Link>
-                ))}
-            </div>
+            <LevelSection
+                title="Level 2: Eröffnung & Pitch"
+                color="bg-amber-500"
+                icon={MessageCircle}
+                items={stages.pitch}
+                description="Der perfekte Einstieg und die Bedarfsanalyse."
+                isLocked={userLevel < 2}
+            />
+
+            <LevelSection
+                title="Level 3: Einwandbehandlung"
+                color="bg-red-500"
+                icon={HandMetal}
+                items={stages.objection}
+                description="Herzstück: Die 125 häufigsten Einwände meistern."
+                isLocked={userLevel < 3}
+            />
+
+            <LevelSection
+                title="Level 4: Closing & Verhandlung"
+                color="bg-purple-600"
+                icon={CheckCircle}
+                items={stages.closing}
+                description="Den Sack zumachen und Konditionen verhandeln."
+                isLocked={userLevel < 4}
+            />
         </div>
     )
 }

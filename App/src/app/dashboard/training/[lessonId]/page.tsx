@@ -6,7 +6,8 @@ import LessonInteractive from './LessonInteractive'
 import AdaptiveText from '@/components/dashboard/AdaptiveText'
 // import { adaptLessonContent } from '@/app/actions/ai' // REMOVED (not needed here anymore)
 
-export default async function LessonPage({ params }: { params: { lessonId: string } }) {
+export default async function LessonPage({ params }: { params: Promise<{ lessonId: string }> }) {
+    const { lessonId } = await params
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -22,33 +23,48 @@ export default async function LessonPage({ params }: { params: { lessonId: strin
     const vark = profile?.vark_primary || 'R'
     const disg = profile?.disg_primary || 'D'
 
+    // Decode Slug (URL safe -> Human readable)
+    const slug = decodeURIComponent(lessonId)
+    console.log("Loading Lesson:", slug)
+
     // Load Lesson Content
     const { data: lesson, error } = await supabase
         .from('lessons')
         .select('*')
-        .eq('slug', params.lessonId)
+        .eq('slug', slug)
         .single()
 
     if (error || !lesson) {
-        // Fallback or Redirect
-        return <div className="p-8 text-center text-red-500">Lektion nicht gefunden: {params.lessonId}</div>
+        console.error("Lesson fetch error:", error, slug)
+        return (
+            <div className="p-12 text-center">
+                <h2 className="text-xl font-bold text-red-500 mb-2">Lektion nicht gefunden 😕</h2>
+                <p className="text-zinc-500 mb-4">Gesucht wurde nach: <code className="bg-zinc-100 p-1 rounded pr-12">{slug}</code></p>
+                <Link href="/dashboard/training" className="text-indigo-600 hover:underline">
+                    &larr; Zurück zur Übersicht
+                </Link>
+            </div>
+        )
     }
 
     // Parse Content if needed (it comes as JSONB from DB, Supabase types might handle it)
     // We expect lesson to have: title, subtitle (maybe in meta_json?), disg_matrix, vark_content
 
     // --- AI ADAPTATION LAYER ---
-    const industry = profile?.industry || 'Workwear'
-    const product = profile?.product_details?.name || 'Workwear Management'
-    const targetAudience = profile?.product_details?.target || 'Geschäftsführer'
+    const context = {
+        industry: profile?.industry || 'Workwear',
+        product: profile?.product_details?.name || 'Workwear Management',
+        target: profile?.product_details?.target || 'Geschäftsführer',
+        disg: disg
+    }
 
-    // 1. Adapt Strategy (DISG)
-    const rawStrategy = lesson.disg_matrix?.[disg]?.intent || 'Strategie laden...'
-    const adaptedStrategy = await adaptLessonContent(rawStrategy, industry, product, targetAudience)
+    // 1. Prepare Raw Content (DISG)
+    const rawStrategy = lesson.disg_matrix?.[disg]?.intent || 'Strategie wird geladen...'
 
-    // 2. Adapt Scenario (VARK)
-    const rawScenario = lesson.vark_content?.[vark] || lesson.vark_content?.['R'] || ''
-    const adaptedScenario = await adaptLessonContent(rawScenario, industry, product, targetAudience)
+    // 2. Prepare Raw Content (VARK)
+    // Safety check: ensure vark_content exists
+    const varkContent = lesson.vark_content || {}
+    const rawScenario = varkContent?.[vark] || varkContent?.['R'] || 'Inhalt folgt in Kürze.'
 
     return (
         <div className="max-w-4xl mx-auto space-y-8 pb-20">
@@ -121,7 +137,7 @@ export default async function LessonPage({ params }: { params: { lessonId: strin
                     vark={vark}
                     disg={disg}
                     userId={user.id}
-                    varkContent={{ ...lesson.vark_content, [vark]: rawScenario }}
+                    varkContent={{ ...varkContent, [vark]: rawScenario }}
                 // context={context} // TODO: Update LessonInteractive to use context if we want deep adaptation inside options
                 />
             </div>
@@ -147,6 +163,7 @@ export default async function LessonPage({ params }: { params: { lessonId: strin
                     </div>
                 </div>
             </div>
+            {/* DEBUG INFO REMOVED */}
         </div>
     )
 }

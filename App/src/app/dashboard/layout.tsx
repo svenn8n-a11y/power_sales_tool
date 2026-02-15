@@ -1,8 +1,9 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { LayoutDashboard, BookOpen, Trophy, Settings, LogOut } from 'lucide-react'
+import { LayoutDashboard, BookOpen, Trophy, Settings, LogOut, LifeBuoy, Users, Brain, Book } from 'lucide-react'
 import LevelProgress from '@/components/dashboard/LevelProgress'
+import SidebarLinks from '@/components/dashboard/SidebarLinks'
 
 export default async function DashboardLayout({
     children,
@@ -46,20 +47,7 @@ export default async function DashboardLayout({
                     />
                 </div>
 
-                <nav className="flex-1 px-4 space-y-2">
-                    <Link href="/dashboard" className="flex items-center gap-3 px-4 py-3 text-zinc-600 hover:bg-zinc-100 rounded-xl dark:text-zinc-400 dark:hover:bg-zinc-900 transition-colors">
-                        <LayoutDashboard className="w-5 h-5" />
-                        <span className="font-medium">Overview</span>
-                    </Link>
-                    <Link href="/dashboard/training" className="flex items-center gap-3 px-4 py-3 text-zinc-600 hover:bg-zinc-100 rounded-xl dark:text-zinc-400 dark:hover:bg-zinc-900 transition-colors">
-                        <BookOpen className="w-5 h-5" />
-                        <span className="font-medium">Training</span>
-                    </Link>
-                    <Link href="/dashboard/leaderboard" className="flex items-center gap-3 px-4 py-3 text-zinc-600 hover:bg-zinc-100 rounded-xl dark:text-zinc-400 dark:hover:bg-zinc-900 transition-colors">
-                        <Trophy className="w-5 h-5" />
-                        <span className="font-medium">Leaderboard</span>
-                    </Link>
-                </nav>
+                <SidebarLinks />
 
                 <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
                     <form action="/auth/signout" method="post">
