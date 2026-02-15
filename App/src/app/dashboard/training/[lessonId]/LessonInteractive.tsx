@@ -1,115 +1,118 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { HandMetal, Play, FileText, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { CheckCircle, Trophy, XCircle, ChevronRight, Star } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import DeepContent from './DeepContent'
+import confetti from 'canvas-confetti'
 
 interface LessonInteractiveProps {
     lessonId: string
-    vark: string
-    disg: string
     userId: string
-    varkContent: any // JSON from DB
+    disgMatrix: any // The full DISG matrix from DB
+    fullContent: any // The deep content (psychology etc)
+    initialCompletedTypes: string[] // 'D', 'I' etc.
+    level?: number // Current Level (1, 2, 3) to calc points
 }
 
-export default function LessonInteractive({ lessonId, vark, disg, userId, varkContent }: LessonInteractiveProps) {
+export default function LessonInteractive({ lessonId, userId, disgMatrix, fullContent, initialCompletedTypes, level = 1 }: LessonInteractiveProps) {
     const supabase = createClient()
     const router = useRouter()
-    const [selectedOption, setSelectedOption] = useState<string | null>(null)
-    const [feedback, setFeedback] = useState<{ type: 'success' | 'error', message: string, detail: string } | null>(null)
+
+    // State
+    const [selectedType, setSelectedType] = useState<string | null>(null)
+    const [completedTypes, setCompletedTypes] = useState<string[]>(initialCompletedTypes || [])
+    const [quizState, setQuizState] = useState<'IDLE' | 'ANSWERED_CORRECT' | 'ANSWERED_WRONG'>('IDLE')
+    const [selectedAnswerId, setSelectedAnswerId] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
 
-    // Szenario: "Zu teuer"
-    // Je nach DISG Typ könnte man die "richtige" Antwort leicht variieren, 
-    // aber hier nehmen wir eine universell gute "Best Practice" Antwort, 
-    // die aber stilistisch zum Typ passt? 
-    // Vereinfachung: Eine fachlich richtige Antwort, aber die User müssen den "Ton" treffen?
-    // Oder einfach: Fachlich richtiges Verhalten (Isolieren, Wert zeigen).
+    // Derived Constants
+    const allTypes = ['D', 'I', 'S', 'G']
+    const isLessonComplete = allTypes.every(t => completedTypes.includes(t))
+    const pointsPerType = level === 1 ? 5 : level === 2 ? 10 : 20
+    const maxPoints = pointsPerType * 4
+    const currentPoints = completedTypes.length * pointsPerType
 
-    // TODO: Load real options from DB (requires schema update)
-    // For now, we reuse the "Too Expensive" options as placeholders for logic testing.
-    const options = [
-        {
-            id: 'A',
-            text: "Das verstehe ich. Aber bedenken Sie unsere hohe Qualität und den Premium-Support, den Sie sonst nirgends bekommen.",
-            isCorrect: false,
-            feedback: "Zu defensiv! Du rechtfertigst den Preis sofort ('Aber...'). Das wirkt unsicher. Der Kunde hört nur: 'Ja, wir sind teuer.'",
-        },
-        {
-            id: 'B',
-            text: "Verstehe. Wenn wir den Preis mal kurz beiseite lassen – passt die Lösung denn ansonsten technisch genau für Sie?",
+    // --- QUIZ GENERATION (The Matrix Hack) ---
+    const quizOptions = useMemo(() => {
+        if (!selectedType || !disgMatrix) return []
+
+        const correctAnswer = {
+            id: selectedType,
+            text: disgMatrix[selectedType]?.wording || "Fehler: Keine Antwort in DB.",
             isCorrect: true,
-            feedback: "Perfekt! Du isolierst den Einwand. Wenn er 'Ja' sagt, ist es nur noch Verhandlungssache. Wenn er 'Nein' sagt, war der Preis nur ein Vorwand.",
-        },
-        {
-            id: 'C',
-            text: "Okay, das ist natürlich ein Punkt. Wo genau liegt denn Ihre Schmerzgrenze? Vielleicht kann ich am Preis noch was machen.",
-            isCorrect: false,
-            feedback: "Vorsicht! Du bietest sofort Rabatt an, ohne den Wert verteidigt zu haben. Du verbrennst Marge und wirkst bedürftig.",
+            type: selectedType
         }
-    ]
 
-    const handleSelect = async (optionId: string) => {
-        if (loading) return
-        setSelectedOption(optionId)
+        const wrongAnswers = allTypes
+            .filter(t => t !== selectedType)
+            .map(t => ({
+                id: t,
+                text: disgMatrix[t]?.wording || "Alternative Antwort...",
+                isCorrect: false,
+                type: t
+            }))
 
-        const option = options.find(o => o.id === optionId)!
+        // Shuffle
+        return [correctAnswer, ...wrongAnswers].sort(() => Math.random() - 0.5)
+    }, [selectedType, disgMatrix])
 
-        if (option.isCorrect) {
-            setFeedback({
-                type: 'success',
-                message: 'Stark!',
-                detail: option.feedback
-            })
-            // Save Progress
-            await saveProgress(100)
-        } else {
-            setFeedback({
-                type: 'error',
-                message: 'Nicht ganz...',
-                detail: option.feedback
-            })
-            // Save Attempt (Score 0)
-            await saveProgress(0)
+    // --- HANDLERS ---
+
+    const handleSelectType = (type: string) => {
+        // If switching types, reset quiz unless already completed
+        if (selectedType !== type) {
+            setSelectedType(type)
+            if (completedTypes.includes(type)) {
+                setQuizState('ANSWERED_CORRECT') // Show content directly if already done
+            } else {
+                setQuizState('IDLE')
+                setSelectedAnswerId(null)
+            }
         }
     }
 
-    const saveProgress = async (score: number) => {
+    const handleAnswer = async (answerId: string, isCorrect: boolean) => {
+        if (loading || quizState === 'ANSWERED_CORRECT') return
+        setSelectedAnswerId(answerId)
+
+        if (isCorrect) {
+            setQuizState('ANSWERED_CORRECT')
+            if (selectedType && !completedTypes.includes(selectedType)) {
+                // Save Progress
+                const newCompleted = [...completedTypes, selectedType]
+                setCompletedTypes(newCompleted)
+                await saveProgress(newCompleted)
+
+                // Trigger Confetti if this was the last one
+                if (newCompleted.length === 4) {
+                    confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
+                }
+            }
+        } else {
+            setQuizState('ANSWERED_WRONG')
+        }
+    }
+
+    const saveProgress = async (newCompletedTypes: string[]) => {
         setLoading(true)
         try {
-            // Upsert Progress
-            // Wir nutzen upsert, um bestehende Scores zu überschreiben oder Attempts zu inkrementieren
-            // Complex Logic: Holen wir erst den alten Progress?
-            // Vereinfacht: Einfach Score updaten. Wünschenswert wäre MAX Score zu behalten.
+            const isNowComplete = newCompletedTypes.length === 4
+            const score = newCompletedTypes.length * pointsPerType
 
-            // Check existing
-            const { data: existing } = await supabase
-                .from('user_progress')
-                .select('score, attempts')
-                .match({ user_id: userId, lesson_id: lessonId })
-                .single()
+            await supabase.from('user_progress').upsert({
+                user_id: userId,
+                lesson_id: lessonId,
+                completed_types: newCompletedTypes,
+                completed: isNowComplete,
+                last_attempt_at: new Date().toISOString(),
+                score: score
+            }, { onConflict: 'user_id, lesson_id' })
 
-            const newAttempts = (existing?.attempts || 0) + 1
-            const bestScore = Math.max(existing?.score || 0, score)
-            const completed = bestScore >= 100
-
-            await supabase
-                .from('user_progress')
-                .upsert({
-                    user_id: userId,
-                    lesson_id: lessonId,
-                    score: bestScore,
-                    attempts: newAttempts,
-                    completed: completed,
-                    last_attempt_at: new Date().toISOString()
-                }, { onConflict: 'user_id, lesson_id' })
-
-            if (score >= 100) {
-                // Trigger Confetti or something?
-                router.refresh() // Update Server Components (e.g. Stats)
+            if (isNowComplete) {
+                router.refresh()
             }
-
         } catch (err) {
             console.error('Save error:', err)
         } finally {
@@ -117,120 +120,196 @@ export default function LessonInteractive({ lessonId, vark, disg, userId, varkCo
         }
     }
 
+    // Colors Helper
+    const getTypeColor = (type: string) => {
+        switch (type) {
+            case 'D': return 'bg-red-500 border-red-600 text-white'
+            case 'I': return 'bg-yellow-400 border-yellow-500 text-black'
+            case 'S': return 'bg-green-500 border-green-600 text-white'
+            case 'G': return 'bg-blue-500 border-blue-600 text-white'
+            default: return 'bg-zinc-200'
+        }
+    }
+
+    const getTypeLabel = (type: string) => {
+        switch (type) {
+            case 'D': return 'Dominant (Rot)'
+            case 'I': return 'Initiativ (Gelb)'
+            case 'S': return 'Stetig (Grün)'
+            case 'G': return 'Gewissenhaft (Blau)'
+            default: return type
+        }
+    }
+
     return (
-        <div className="space-y-6">
-            {/* KINESTHETIC / INTERACTIVE CONTAINER */}
-            <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-                <div className="p-6 bg-indigo-600 text-white">
-                    <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center font-bold text-lg">
-                            {vark === 'K' ? 'K' : 'Ü'}
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-lg">
-                                {vark === 'K' ? 'Deine Simulation' : 'Praxis-Übung'}
-                            </h3>
-                            <p className="text-indigo-200 text-sm">Entscheide dich für die beste Reaktion.</p>
-                        </div>
+        <div className="space-y-8">
+
+            {/* 1. PROGRESS BAR & STATUS */}
+            <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 shadow-sm flex items-center justify-between">
+                <div>
+                    <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1">Dein Punktestand</div>
+                    <div className={`text-2xl font-black flex items-center gap-2 ${isLessonComplete ? 'text-yellow-500' : 'text-zinc-700 dark:text-zinc-200'}`}>
+                        {currentPoints} <span className="text-zinc-400 text-sm font-normal">/ {maxPoints}</span>
+                        {isLessonComplete && <Star className="fill-yellow-500 text-yellow-500 w-6 h-6 animate-pulse" />}
                     </div>
                 </div>
 
-                <div className="p-6 md:p-8">
-                    {/* Scenario */}
-                    <div className="mb-8 p-4 bg-zinc-50 dark:bg-black rounded-lg border-l-4 border-indigo-500 italic text-zinc-700 dark:text-zinc-300">
-                        "{varkContent?.[vark] || varkContent?.['R'] || 'Szenario wird geladen...'}"
-                    </div>
+                {/* Visual Segments */}
+                <div className="flex gap-1">
+                    {allTypes.map(t => (
+                        <div key={t} className={`w-8 h-2 rounded-full transition-all ${completedTypes.includes(t) ? getTypeColor(t).split(' ')[0] : 'bg-zinc-200 dark:bg-zinc-800'}`} />
+                    ))}
+                </div>
+            </div>
 
-                    <p className="font-bold mb-4 text-zinc-900 dark:text-white">Wie reagierst du?</p>
+            {/* 2. TYPE SELECTOR (Cockpit) */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {allTypes.map(type => {
+                    const isActive = selectedType === type
+                    const isDone = completedTypes.includes(type)
 
-                    <div className="space-y-3">
-                        {options.map((opt) => {
-                            const isSelected = selectedOption === opt.id
-                            const showResult = !!feedback && isSelected
+                    return (
+                        <button
+                            key={type}
+                            onClick={() => handleSelectType(type)}
+                            className={`
+                                relative p-6 rounded-xl border-b-4 transition-all duration-200 transform hover:-translate-y-1 text-left
+                                ${isActive ? 'ring-2 ring-offset-2 ring-indigo-500 scale-105 shadow-xl z-10' : 'hover:shadow-md opacity-90 hover:opacity-100'}
+                                ${getTypeColor(type)}
+                                ${isDone && !isActive ? 'opacity-60 saturate-50' : ''}
+                            `}
+                        >
+                            {isDone && <CheckCircle className="absolute top-2 right-2 w-5 h-5 opacity-50" />}
+                            <span className="text-2xl font-black block mb-1">{type}</span>
+                            <span className="text-xs uppercase font-bold opacity-80">{getTypeLabel(type)}</span>
+                        </button>
+                    )
+                })}
+            </div>
 
-                            // Style Logic:
-                            // Neutral if nothing selected or this wasn't selected
-                            // If selected and feedback exists: Green if correct, Red if wrong
+            {/* 3. QUIZ AREA */}
+            {selectedType && disgMatrix?.[selectedType] && (
+                <div className="animate-in fade-in zoom-in-95 duration-300">
+                    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-8 shadow-lg">
 
-                            let borderClass = "border-zinc-200 dark:border-zinc-700 hover:border-indigo-500"
-                            let bgClass = "bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-700/50"
-                            let icon = null
+                        <div className="mb-8">
+                            <h3 className="text-xl font-bold mb-2">Der Kunde ({getTypeLabel(selectedType)}) sagt:</h3>
+                            <div className="text-lg italic text-zinc-600 dark:text-zinc-400 border-l-4 border-indigo-500 pl-4 py-2 bg-zinc-50 dark:bg-zinc-800/50 rounded-r">
+                                "{disgMatrix[selectedType]?.intent || "Ich bin skeptisch..."}"
+                            </div>
+                            <p className="mt-4 font-bold text-zinc-800 dark:text-white">
+                                Welche Antwort überzeugt diesen Typen am meisten?
+                            </p>
+                        </div>
 
-                            if (isSelected && feedback) {
-                                if (feedback.type === 'success') {
-                                    borderClass = "border-green-500 bg-green-50 dark:bg-green-900/10"
-                                    icon = <CheckCircle className="w-5 h-5 text-green-500" />
-                                } else {
-                                    borderClass = "border-red-500 bg-red-50 dark:bg-red-900/10"
-                                    icon = <XCircle className="w-5 h-5 text-red-500" />
+                        {/* ANSWER OPTIONS */}
+                        <div className="space-y-3">
+                            {quizOptions.map((opt) => {
+                                const isSelected = selectedAnswerId === opt.id
+                                const showResult = quizState !== 'IDLE'
+
+                                let containerClass = "border-zinc-200 hover:border-indigo-400 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                if (showResult) {
+                                    if (opt.isCorrect && (isSelected || quizState === 'ANSWERED_CORRECT')) {
+                                        containerClass = "border-green-500 bg-green-50 dark:bg-green-900/20"
+                                    } else if (isSelected && !opt.isCorrect) {
+                                        containerClass = "border-red-500 bg-red-50 dark:bg-red-900/20"
+                                    } else {
+                                        containerClass = "opacity-50 grayscale"
+                                    }
                                 }
-                            } else if (feedback) {
-                                // Deactivate others
-                                bgClass = "opacity-50 cursor-not-allowed bg-zinc-50 dark:bg-zinc-900"
-                            }
 
-                            return (
-                                <button
-                                    key={opt.id}
-                                    onClick={() => !feedback && handleSelect(opt.id)}
-                                    disabled={!!feedback}
-                                    className={`w-full text-left p-5 rounded-xl border-2 transition-all group relative ${borderClass} ${bgClass}`}
-                                >
-                                    <div className="flex items-start gap-4">
-                                        <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold text-sm shrink-0 
-                                            ${isSelected ? (feedback?.type === 'success' ? 'border-green-500 text-green-600' : 'border-red-500 text-red-600') : 'border-zinc-300 text-zinc-400'}
-                                        `}>
-                                            {opt.id}
+                                return (
+                                    <button
+                                        key={opt.id}
+                                        onClick={() => handleAnswer(opt.id, opt.isCorrect)}
+                                        disabled={showResult}
+                                        className={`w-full text-left p-4 rounded-xl border-2 transition-all ${containerClass}`}
+                                    >
+                                        <div className="flex gap-3">
+                                            <div className="mt-1">
+                                                {showResult && opt.isCorrect ? <CheckCircle className="text-green-500 w-5 h-5" /> :
+                                                    showResult && isSelected && !opt.isCorrect ? <XCircle className="text-red-500 w-5 h-5" /> :
+                                                        <div className="w-5 h-5 rounded-full border border-zinc-300" />}
+                                            </div>
+                                            <span className="text-zinc-800 dark:text-zinc-200">{opt.text}</span>
                                         </div>
-                                        <div className="flex-1">
-                                            <span className={`block ${isSelected && feedback ? 'font-bold' : ''}`}>
-                                                {opt.text}
-                                            </span>
-                                        </div>
-                                        {icon}
-                                    </div>
-                                </button>
-                            )
-                        })}
+                                    </button>
+                                )
+                            })}
+                        </div>
+
+                        {/* WRONG ANSWER FEEDBACK */}
+                        {quizState === 'ANSWERED_WRONG' && (
+                            <div className="mt-6 p-4 bg-red-50 text-red-800 rounded-lg animate-in fade-in">
+                                <strong>Das passt nicht ganz!</strong><br />
+                                Diese Antwort würde eher zu einem anderen Typen passen. Überlege: Was braucht ein <u>{getTypeLabel(selectedType)}</u>?
+                                <button onClick={() => { setQuizState('IDLE'); setSelectedAnswerId(null) }} className="block mt-2 text-red-600 underline font-bold">Nochmal versuchen</button>
+                            </div>
+                        )}
+
                     </div>
 
-                    {/* FEEDBACK AREA */}
-                    {feedback && (
-                        <div className={`mt-8 p-6 rounded-xl animate-in fade-in slide-in-from-bottom-4 ${feedback.type === 'success'
-                            ? 'bg-green-100 text-green-900 dark:bg-green-900/20 dark:text-green-100'
-                            : 'bg-red-100 text-red-900 dark:bg-red-900/20 dark:text-red-100'
-                            }`}>
-                            <h4 className="font-bold text-lg flex items-center gap-2 mb-2">
-                                {feedback.type === 'success' ? 'Richtig!' : 'Vorsicht!'}
-                            </h4>
-                            <p className="text-lg">{feedback.detail}</p>
-
-                            {feedback.type === 'error' && (
-                                <button
-                                    onClick={() => {
-                                        setFeedback(null)
-                                        setSelectedOption(null)
-                                    }}
-                                    className="mt-4 px-4 py-2 bg-white text-red-900 text-sm font-bold rounded-lg shadow-sm hover:bg-red-50 transition"
-                                >
-                                    Nochmal versuchen
-                                </button>
-                            )}
-
-                            {feedback.type === 'success' && (
-                                <div className="mt-4 flex gap-4">
-                                    <button
-                                        className="px-6 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition shadow-lg"
-                                        onClick={() => router.push('/dashboard/training')}
-                                    >
-                                        Lektion abschließen
-                                    </button>
-                                </div>
-                            )}
+                    {/* 4. UNLOCKED DEEP CONTENT */}
+                    {quizState === 'ANSWERED_CORRECT' && (
+                        <div className="mt-8 animate-in slide-in-from-bottom-8 duration-500">
+                            <div className="flex items-center gap-2 mb-4 text-green-600 font-bold">
+                                <Trophy className="w-6 h-6" />
+                                <span>Klasse! Framework freigeschaltet.</span>
+                            </div>
+                            <DeepContent content={fullContent} selectedDisg={selectedType} />
                         </div>
                     )}
                 </div>
-            </div>
+            )}
+
+            {/* 5. COMPLETION SCREEN (Winner's Circle) */}
+            {isLessonComplete && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-500">
+                    <div className="bg-white dark:bg-zinc-900 rounded-3xl p-8 max-w-lg w-full shadow-2xl border-4 border-yellow-400 text-center relative overflow-hidden">
+
+                        {/* Decor */}
+                        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-red-500 via-yellow-400 to-blue-500" />
+                        <div className="absolute -top-10 -right-10 w-32 h-32 bg-yellow-400/20 rounded-full blur-3xl pointer-events-none" />
+
+                        <Trophy className="w-16 h-16 text-yellow-500 mx-auto mb-4 animate-bounce" />
+
+                        <h2 className="text-3xl font-black mb-2 text-zinc-900 dark:text-white">Lektion gemeistert!</h2>
+                        <p className="text-zinc-500 mb-6 text-lg">
+                            Du hast alle 4 Typen erfolgreich erkannt/bearbeitet.
+                            <br />
+                            <span className="font-bold text-green-600 flex items-center justify-center gap-1 mt-2">
+                                <CheckCircle className="w-4 h-4" /> Fortschritt gespeichert.
+                            </span>
+                        </p>
+
+                        <div className="grid gap-3">
+                            <button
+                                onClick={() => router.push('/dashboard/training')}
+                                className="w-full py-4 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                            >
+                                Zurück zur Übersicht
+                            </button>
+
+                            {/* TODO: Logic for Next Lesson ID */}
+                            <button
+                                onClick={() => router.push('/dashboard/training')} // Placeholder for Next
+                                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/30 transition-all flex items-center justify-center gap-2 transform hover:scale-[1.02]"
+                            >
+                                Nächste Lektion <ChevronRight className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+            )}
+
+            {!selectedType && (
+                <div className="text-center py-12 text-zinc-400">
+                    <p>Wähle einen Typen um das Training zu starten.</p>
+                </div>
+            )}
+
         </div>
     )
 }

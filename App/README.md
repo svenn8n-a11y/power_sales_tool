@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🎓 Pöppel Sales Academy (App)
 
-## Getting Started
+Die Trainings-Plattform für B2B-Vertrieb (Workwear).
+Gamifiziertes Einwandbehandlungs-Training mit DISG-Persönlichkeitsanalysen.
 
-First, run the development server:
+## 🚀 Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+### 1. Training (Dashboard)
+*   **4 Level:** Aufgeteilt nach Schwierigkeit und Phase (P001-P128).
+    1.  **Typ erkennen (Awareness):** Wer spricht da? (D/I/S/G)
+    2.  **Einstieg & Pitch:** Der perfekte erste Eindruck.
+    3.  **Einwandbehandlung:** Die Königsdisziplin.
+    4.  **Closing:** Abschluss-Techniken.
+*   **Fortschritt:** Tracking pro Lektion (Balken, Punkte, Sterne).
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Interaktive Lektionen
+*   **Quiz-Modus:** 4 Antwortmöglichkeiten (1 richtig, 3 falsch).
+*   **DISG-Logik:** Antworten basieren auf dem Persönlichkeitstyp.
+*   **Deep Content:** Psychologische Analyse & Frameworks (nach Erfolg freigeschaltet).
+*   **Gamification:** Konfetti & "Winner Screen" bei Abschluss.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Admin & Content
+*   **Import:** Automatisierter Import von Markdown-Lektionen (Upsert).
+*   **Database:** Supabase (PostgreSQL) für User, Progress und Lessons.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 💻 Tech Stack
+*   **Framework:** Next.js 14+ (App Router)
+*   **Language:** TypeScript
+*   **Styling:** Tailwind CSS
+*   **Database:** Supabase
+*   **Icons:** Lucide React
 
-## Learn More
+## 🛠️ Setup & Run
 
-To learn more about Next.js, take a look at the following resources:
+1.  **Install:**
+    ```bash
+    npm install
+    ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+2.  **Dev Server:**
+    ```bash
+    npm run dev
+    ```
+    Open [http://localhost:3000](http://localhost:3000)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 📂 Struktur
+*   `src/app/dashboard/training`: Haupt-Ansicht (Level-Übersicht).
+*   `src/app/dashboard/training/[lessonId]`: Einzelne Lektion (Interactive).
+*   `scripts/`: Import & Utility Skripte (Node.js).
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 📝 Wichtige SQL Skripte
+*   `16_fix_levels.sql`: Ordnet Lektionen den 4 Levels zu.
+*   `15_progress_tracking.sql`: Aktiviert Tracking (Punkte/Typen).

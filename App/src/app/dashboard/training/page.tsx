@@ -1,11 +1,18 @@
 import { createClient } from '@/utils/supabase/server'
-import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Play, CheckCircle, Brain, MessageCircle, HandMetal } from 'lucide-react'
+import { BookOpen, CheckCircle, Star, Lock, Trophy, HandMetal, MessageCircle, Brain } from 'lucide-react'
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
+export const metadata = {
+    title: 'Training | Sales Academy',
+    description: 'Wähle dein Szenario',
+}
 
 // Helper Component for Level Sections
-const LevelSection = ({ title, color, icon: Icon, items, description, isLocked }: any) => (
-    <div className={`mb-12 ${isLocked ? 'opacity-50 grayscale' : ''}`}>
+const LevelSection = ({ title, color, icon: Icon, items, description, isLocked, progressMap }: any) => (
+    <div className={`mb-16 ${isLocked ? 'opacity-50 grayscale pointer-events-none' : ''}`}>
         <div className="flex items-center gap-4 mb-6">
             <div className={`p-3 rounded-xl ${color} text-white shadow-lg`}>
                 <Icon className="w-6 h-6" />
@@ -21,38 +28,60 @@ const LevelSection = ({ title, color, icon: Icon, items, description, isLocked }
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {items && items.length > 0 ? items.map((lesson: any) => {
-                // const isCompleted = lesson.completed_lessons?.length > 0
-                const isCompleted = false // Temporarily disabled
+                const progress = progressMap.get(lesson.id)
+                const isCompleted = progress?.completed
+                const completedTypes = progress?.completed_types || []
+                const currentScore = progress?.score || 0
+                // Default Points per Level (approx)
+                const maxScore = lesson.level === 1 ? 20 : lesson.level === 2 ? 40 : 80
+
+                // Color Logic for Bar
+                const getTypeColor = (type: string) => {
+                    switch (type) {
+                        case 'D': return 'bg-red-500'
+                        case 'I': return 'bg-yellow-400'
+                        case 'S': return 'bg-green-500'
+                        case 'G': return 'bg-blue-500'
+                        default: return 'bg-zinc-200'
+                    }
+                }
+
                 return (
                     <div
                         key={lesson.id}
-                        className="group bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col h-full"
+                        className="group bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col h-full relative"
                     >
-                        <div className="flex justify-between items-start mb-4">
-                            <span className={`text-xs font-bold px-3 py-1 rounded-full ${isCompleted ? 'bg-green-100 text-green-700' : 'bg-zinc-100 text-zinc-500'}`}>
-                                {isCompleted ? 'Gelöst ✅' : 'Offen'}
+                        {/* Link Wrap */}
+                        <Link href={`/dashboard/training/${lesson.slug}`} className="absolute inset-0 z-10" />
+
+                        {/* Status Badge Top Right */}
+                        <div className="absolute top-4 right-4 flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded-lg text-xs font-bold z-20">
+                            <span className={isCompleted ? 'text-yellow-500' : 'text-zinc-400'}>
+                                {currentScore}/{maxScore}
                             </span>
-                            <span className="text-xs font-mono text-zinc-400">{lesson.slug}</span>
+                            {isCompleted && <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />}
                         </div>
 
-                        <h3 className="font-bold text-lg mb-2 flex-1">
-                            {lesson.title}
-                        </h3>
+                        <div className="mb-4">
+                            <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                                {lesson.category} • {lesson.slug.split('_')[0]}
+                            </span>
+                            <h3 className="font-bold text-lg mt-1 group-hover:text-indigo-600 transition-colors">
+                                {lesson.title}
+                            </h3>
+                        </div>
 
-                        <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                            {isLocked ? (
-                                <div className="flex items-center gap-2 text-sm text-zinc-500 cursor-not-allowed">
-                                    <span>🔒 Benötigt Level-Up</span>
-                                </div>
-                            ) : (
-                                <Link
-                                    href={`/dashboard/training/${lesson.slug}`}
-                                    className="flex items-center justify-center gap-2 w-full py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg font-bold transition text-sm"
-                                >
-                                    <Play className="w-4 h-4 fill-current" />
-                                    Lektion starten
-                                </Link>
-                            )}
+                        {/* Progress Bar Mini */}
+                        <div className="mt-auto pt-4 border-t border-zinc-100 dark:border-zinc-800 space-y-2">
+                            <div className="flex h-2 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-800">
+                                {['D', 'I', 'S', 'G'].map(t => (
+                                    <div key={t} className={`flex-1 transition-colors ${completedTypes.includes(t) ? getTypeColor(t) : 'bg-transparent'}`} />
+                                ))}
+                            </div>
+                            <div className="flex justify-between text-xs text-zinc-400">
+                                <span>{completedTypes.length}/4 Typen</span>
+                                {isCompleted ? <span className="text-green-500 font-bold">Meister!</span> : <span>In Arbeit</span>}
+                            </div>
                         </div>
                     </div>
                 )
@@ -69,94 +98,115 @@ export default async function TrainingPage() {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
-    if (!user) return redirect('/login')
-
-    // Load User Profile for Level Check
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-
-    // Load all Lessons
-    // REMOVED completed_lessons join for stability
-    const { data: lessons, error: lessonsError } = await supabase
+    // 1. Load Lessons
+    const { data: lessons } = await supabase
         .from('lessons')
         .select('*')
-        .order('title', { ascending: true })
+        .order('slug', { ascending: true }) // Order by P-Number
 
-    console.log('--- DEEP DEBUG LESSONS ---')
-    if (lessons && lessons.length > 0) {
-        const l = lessons[0]
-        console.log('Sample Lesson:', {
-            id: l.id,
-            slug: l.slug,
-            level: l.level,
-            stage: l.stage,
-            is_locked_check: (!l.stage && !l.level)
-        })
-    } else {
-        console.log('No lessons found in array')
-    }
-    console.log('---------------------')
+    // 2. Load Progress
+    const { data: allProgress } = await supabase
+        .from('user_progress')
+        .select('*')
+        .eq('user_id', user?.id)
 
-    // Group lessons by stage
-    // Note: If migration wasn't run, stage/level might be null. We treat null as Objection (Level 3) or Intro (Level 1) depending on fallback logic.
-    // Here we use explicit checks.
-    // Group lessons by stage
-    // Note: If migration wasn't run, stage/level might be null.
-    // KEY FIX: Treat unclassified lessons as Intro (Level 1) so they are unlocked.
-    const stages = {
-        intro: lessons?.filter(l => l.stage === 'intro' || l.level === 1 || (!l.stage && !l.level)) || [], // Fallback here
-        pitch: lessons?.filter(l => l.stage === 'pitch' || l.level === 2) || [],
-        objection: lessons?.filter(l => l.stage === 'objection' || l.level === 3) || [],
-        closing: lessons?.filter(l => l.stage === 'closing' || l.level === 4) || []
-    }
+    const progressMap = new Map(allProgress?.map(p => [p.lesson_id, p]))
 
-    const userLevel = profile?.level || 1
+    // 3. Stats Calculation
+    const totalLessons = lessons?.length || 0
+    const completedLessons = allProgress?.filter(p => p.completed).length || 0
+    const totalPoints = allProgress?.reduce((acc, curr) => acc + (curr.score || 0), 0) || 0
+
+    // 4. Manual Grouping (based on P-Numbers / Level)
+    // We assume level column is set by script. If not, we fallback to range check.
+    const level1 = lessons?.filter(l => l.level === 1 || (l.slug >= 'P001' && l.slug <= 'P030')) || []
+    const level2 = lessons?.filter(l => l.level === 2 || (l.slug >= 'P031' && l.slug <= 'P060')) || []
+    const level3 = lessons?.filter(l => l.level === 3 || (l.slug >= 'P061' && l.slug <= 'P100')) || []
+    const level4 = lessons?.filter(l => l.level === 4 || l.slug >= 'P101') || []
 
     return (
-        <div className="max-w-7xl mx-auto pb-20">
-            <div className="mb-12">
-                <h1 className="text-3xl font-bold text-zinc-900 dark:text-white mb-2">Training Center 🥋</h1>
-                <p className="text-zinc-500">Meistern Sie die 4 Stufen des Verkaufs.</p>
+        <div className="max-w-7xl mx-auto pb-20 space-y-12">
+
+            {/* Header Stats */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-zinc-900 text-white p-8 rounded-3xl shadow-2xl relative overflow-hidden">
+                <div className="relative z-10">
+                    <h1 className="text-4xl font-black tracking-tight mb-2">Training Center 🥋</h1>
+                    <p className="text-zinc-400">Meistere die 4 Stufen des Verkaufs.</p>
+                </div>
+
+                <div className="flex gap-8 relative z-10">
+                    <div className="text-center">
+                        <div className="text-3xl font-black text-yellow-400">{totalPoints}</div>
+                        <div className="text-xs uppercase font-bold tracking-wider opacity-60">XP Punkte</div>
+                    </div>
+                    <div className="text-center">
+                        <div className="text-3xl font-black text-indigo-400">{completedLessons}/{totalLessons}</div>
+                        <div className="text-xs uppercase font-bold tracking-wider opacity-60">Lektionen</div>
+                    </div>
+                </div>
+
+                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/20 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
             </div>
 
+            {/* LEVELS */}
             <LevelSection
-                title="Level 1: Grundlagen & Mindset"
+                title="Level 1: Typ erkennen (Awareness)"
+                description="Lerne zu hören, welcher Persönlichkeitstyp (DISG) vor dir steht."
                 color="bg-emerald-500"
                 icon={Brain}
-                items={stages.intro}
-                description="Wie Sie professionell auftreten und Vertrauen aufbauen."
+                items={level1}
+                progressMap={progressMap}
                 isLocked={false}
             />
 
             <LevelSection
-                title="Level 2: Eröffnung & Pitch"
+                title="Level 2: Einstieg & Pitch"
+                description="Der perfekte erste Eindruck."
                 color="bg-amber-500"
                 icon={MessageCircle}
-                items={stages.pitch}
-                description="Der perfekte Einstieg und die Bedarfsanalyse."
-                isLocked={userLevel < 2}
+                items={level2}
+                progressMap={progressMap}
+                isLocked={false} // Todo: Lock based on Level 1 completion
             />
 
             <LevelSection
                 title="Level 3: Einwandbehandlung"
+                description="Die Königsdisziplin. Kontern Sie jeden Einwand."
                 color="bg-red-500"
                 icon={HandMetal}
-                items={stages.objection}
-                description="Herzstück: Die 125 häufigsten Einwände meistern."
-                isLocked={userLevel < 3}
+                items={level3}
+                progressMap={progressMap}
+                isLocked={false}
             />
 
             <LevelSection
-                title="Level 4: Closing & Verhandlung"
+                title="Level 4: Closing"
+                description="Den Sack zumachen."
                 color="bg-purple-600"
                 icon={CheckCircle}
-                items={stages.closing}
-                description="Den Sack zumachen und Konditionen verhandeln."
-                isLocked={userLevel < 4}
+                items={level4}
+                progressMap={progressMap}
+                isLocked={false}
             />
+
+            {/* DEBUG SECTION */}
+            <div className="mt-20 p-8 bg-zinc-100 border border-zinc-300 rounded overflow-auto font-mono text-xs">
+                <h3 className="font-bold mb-2 text-red-600">🛠 DEBUG INFO</h3>
+                <p>Total Lessons: {lessons?.length}</p>
+                <p>Level 1 Count: {level1.length}</p>
+                <p>Level 2 Count: {level2.length}</p>
+                <p>Level 3 Count: {level3.length}</p>
+                <p>Level 4 Count: {level4.length}</p>
+                <div className="mt-4">
+                    <strong>Sample Slugs (First 10):</strong>
+                    <ul className="list-disc pl-4">
+                        {lessons?.slice(0, 10).map(l => (
+                            <li key={l.id}>{l.slug} (Level in DB: {l.level})</li>
+                        ))}
+                    </ul>
+                </div>
+            </div>
+
         </div>
     )
 }
