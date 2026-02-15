@@ -10,9 +10,10 @@ interface LessonInteractiveProps {
     vark: string
     disg: string
     userId: string
+    varkContent: any // JSON from DB
 }
 
-export default function LessonInteractive({ lessonId, vark, disg, userId }: LessonInteractiveProps) {
+export default function LessonInteractive({ lessonId, vark, disg, userId, varkContent }: LessonInteractiveProps) {
     const supabase = createClient()
     const router = useRouter()
     const [selectedOption, setSelectedOption] = useState<string | null>(null)
@@ -26,6 +27,8 @@ export default function LessonInteractive({ lessonId, vark, disg, userId }: Less
     // Vereinfachung: Eine fachlich richtige Antwort, aber die User müssen den "Ton" treffen?
     // Oder einfach: Fachlich richtiges Verhalten (Isolieren, Wert zeigen).
 
+    // TODO: Load real options from DB (requires schema update)
+    // For now, we reuse the "Too Expensive" options as placeholders for logic testing.
     const options = [
         {
             id: 'A',
@@ -135,7 +138,7 @@ export default function LessonInteractive({ lessonId, vark, disg, userId }: Less
                 <div className="p-6 md:p-8">
                     {/* Scenario */}
                     <div className="mb-8 p-4 bg-zinc-50 dark:bg-black rounded-lg border-l-4 border-indigo-500 italic text-zinc-700 dark:text-zinc-300">
-                        "Herr Müller, Ihr Angebot klingt ja ganz nett, aber 5.000 Euro? Das ist einfach viel zu teuer für uns! Das sprengt unser Budget komplett."
+                        "{varkContent?.[vark] || varkContent?.['R'] || 'Szenario wird geladen...'}"
                     </div>
 
                     <p className="font-bold mb-4 text-zinc-900 dark:text-white">Wie reagierst du?</p>
@@ -194,8 +197,8 @@ export default function LessonInteractive({ lessonId, vark, disg, userId }: Less
                     {/* FEEDBACK AREA */}
                     {feedback && (
                         <div className={`mt-8 p-6 rounded-xl animate-in fade-in slide-in-from-bottom-4 ${feedback.type === 'success'
-                                ? 'bg-green-100 text-green-900 dark:bg-green-900/20 dark:text-green-100'
-                                : 'bg-red-100 text-red-900 dark:bg-red-900/20 dark:text-red-100'
+                            ? 'bg-green-100 text-green-900 dark:bg-green-900/20 dark:text-green-100'
+                            : 'bg-red-100 text-red-900 dark:bg-red-900/20 dark:text-red-100'
                             }`}>
                             <h4 className="font-bold text-lg flex items-center gap-2 mb-2">
                                 {feedback.type === 'success' ? 'Richtig!' : 'Vorsicht!'}

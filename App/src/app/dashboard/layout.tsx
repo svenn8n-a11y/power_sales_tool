@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { LayoutDashboard, BookOpen, Trophy, Settings, LogOut } from 'lucide-react'
+import LevelProgress from '@/components/dashboard/LevelProgress'
 
 export default async function DashboardLayout({
     children,
@@ -18,8 +19,12 @@ export default async function DashboardLayout({
         return redirect('/login')
     }
 
-    // Fetch Profile (Optional, for Avatar/Name)
-    // const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+    // Fetch Profile for Gamification
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
 
     return (
         <div className="flex h-screen bg-zinc-50 dark:bg-black">
@@ -31,6 +36,14 @@ export default async function DashboardLayout({
                             Sales Dojo 🥋
                         </h1>
                     </Link>
+                </div>
+
+                <div className="px-6 mb-6">
+                    <LevelProgress
+                        xp={profile?.xp || 0}
+                        level={profile?.level || 1}
+                        maxXp={(profile?.level || 1) * 1000}
+                    />
                 </div>
 
                 <nav className="flex-1 px-4 space-y-2">

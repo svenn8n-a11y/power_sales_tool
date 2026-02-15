@@ -148,6 +148,11 @@ export default function OnboardingPage() {
     const [currentStep, setCurrentStep] = useState(0)
     const [answers, setAnswers] = useState<Record<string, number>>({}) // { V: 0, A: 0, D: 0, ... }
     const [loading, setLoading] = useState(false)
+    const [productContext, setProductContext] = useState({
+        industry: 'Workwear',
+        product: '',
+        target: ''
+    })
 
     const handleAnswer = (value: string) => {
         // Score erhöhen
@@ -157,11 +162,12 @@ export default function OnboardingPage() {
         }))
 
         // Nächster Schritt
-        if (currentStep < questions.length - 1) {
-            setCurrentStep(prev => prev + 1)
-        } else {
-            finishOnboarding()
-        }
+        setCurrentStep(prev => prev + 1)
+    }
+
+    const handleProductSubmit = (e: React.FormEvent) => {
+        e.preventDefault()
+        finishOnboarding()
     }
 
     const finishOnboarding = async () => {
@@ -176,7 +182,7 @@ export default function OnboardingPage() {
         const topDisg = disgKeys.reduce((a, b) => (answers[a] || 0) > (answers[b] || 0) ? a : b)
 
         try {
-            const { data: { user } } = await createClient().auth.getUser() // Using client directly here
+            const { data: { user } } = await createClient().auth.getUser()
             if (!user) {
                 router.push('/login')
                 return
@@ -188,9 +194,15 @@ export default function OnboardingPage() {
                 .upsert({
                     id: user.id,
                     vark_primary: topVark,
-                    vark_scores: answers, // Speichert alle Details
+                    vark_scores: answers,
                     disg_primary: topDisg,
                     disg_scores: answers,
+                    // New Context Fields
+                    industry: productContext.industry,
+                    product_details: {
+                        name: productContext.product,
+                        target: productContext.target
+                    }
                 })
 
             if (error) throw error
@@ -199,7 +211,6 @@ export default function OnboardingPage() {
 
         } catch (err: any) {
             console.error('Onboarding Error:', err)
-            // Versuche Details zu extrahieren
             const msg = err.message || JSON.stringify(err)
             alert(`Fehler beim Speichern: ${msg}`)
         } finally {
@@ -207,8 +218,70 @@ export default function OnboardingPage() {
         }
     }
 
+    const isQuizComplete = currentStep === questions.length
+    const progress = Math.min(100, ((currentStep + 1) / (questions.length + 1)) * 100)
+
+    if (isQuizComplete) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-black p-4">
+                <div className="w-full max-w-2xl bg-white dark:bg-zinc-900 rounded-2xl shadow-xl p-8 border border-zinc-100 dark:border-zinc-800">
+                    <h2 className="text-2xl font-bold text-zinc-900 dark:text-white mb-6">Fast geschafft! 🚀</h2>
+                    <p className="mb-6 text-zinc-600 dark:text-zinc-400">Damit wir das Training für dich anpassen können, sag uns kurz, was du verkaufst.</p>
+
+                    <form onSubmit={handleProductSubmit} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Branche</label>
+                            <select
+                                value={productContext.industry}
+                                onChange={(e) => setProductContext({ ...productContext, industry: e.target.value })}
+                                className="w-full p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800"
+                            >
+                                <option value="Workwear">Workwear (Standard)</option>
+                                <option value="Tools">Werkzeug & Maschinen</option>
+                                <option value="SaaS">Software / SaaS</option>
+                                <option value="Consulting">Beratung / Dienstleistung</option>
+                                <option value="Other">Andere</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Dein Produkt / Service</label>
+                            <input
+                                type="text"
+                                required
+                                placeholder="z.B. CNC-Fräsmaschine X500"
+                                value={productContext.product}
+                                onChange={(e) => setProductContext({ ...productContext, product: e.target.value })}
+                                className="w-full p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Deine Zielgruppe (Wer kauft?)</label>
+                            <input
+                                type="text"
+                                required
+                                placeholder="z.B. Produktionsleiter im Mittelstand"
+                                value={productContext.target}
+                                onChange={(e) => setProductContext({ ...productContext, target: e.target.value })}
+                                className="w-full p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800"
+                            />
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50 mt-4"
+                        >
+                            {loading ? 'Hut denkt nach... 🧙‍♂️' : 'Training starten 🏁'}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        )
+    }
+
     const q = questions[currentStep]
-    const progress = ((currentStep + 1) / questions.length) * 100
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-black p-4">

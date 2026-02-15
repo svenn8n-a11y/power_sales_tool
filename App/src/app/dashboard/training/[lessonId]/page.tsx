@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import { ArrowLeft, Calculator, MessageCircle, Play, CheckCircle, HandMetal, FileText } from 'lucide-react'
 import Link from 'next/link'
 import LessonInteractive from './LessonInteractive'
+import AdaptiveText from '@/components/dashboard/AdaptiveText'
+// import { adaptLessonContent } from '@/app/actions/ai' // REMOVED (not needed here anymore)
 
 export default async function LessonPage({ params }: { params: { lessonId: string } }) {
     const supabase = await createClient()
@@ -20,12 +22,33 @@ export default async function LessonPage({ params }: { params: { lessonId: strin
     const vark = profile?.vark_primary || 'R'
     const disg = profile?.disg_primary || 'D'
 
-    // Mock Content für "Zu teuer" (lessonId = 1)
-    const lesson = {
-        title: 'Einwand: "Zu teuer"',
-        subtitle: 'Wie du den Preis verteidigst, ohne Rabatt zu geben.',
-        description: 'Der Klassiker. Hier lernst du, den Wert zu verkaufen statt den Preis zu senken.',
+    // Load Lesson Content
+    const { data: lesson, error } = await supabase
+        .from('lessons')
+        .select('*')
+        .eq('slug', params.lessonId)
+        .single()
+
+    if (error || !lesson) {
+        // Fallback or Redirect
+        return <div className="p-8 text-center text-red-500">Lektion nicht gefunden: {params.lessonId}</div>
     }
+
+    // Parse Content if needed (it comes as JSONB from DB, Supabase types might handle it)
+    // We expect lesson to have: title, subtitle (maybe in meta_json?), disg_matrix, vark_content
+
+    // --- AI ADAPTATION LAYER ---
+    const industry = profile?.industry || 'Workwear'
+    const product = profile?.product_details?.name || 'Workwear Management'
+    const targetAudience = profile?.product_details?.target || 'Geschäftsführer'
+
+    // 1. Adapt Strategy (DISG)
+    const rawStrategy = lesson.disg_matrix?.[disg]?.intent || 'Strategie laden...'
+    const adaptedStrategy = await adaptLessonContent(rawStrategy, industry, product, targetAudience)
+
+    // 2. Adapt Scenario (VARK)
+    const rawScenario = lesson.vark_content?.[vark] || lesson.vark_content?.['R'] || ''
+    const adaptedScenario = await adaptLessonContent(rawScenario, industry, product, targetAudience)
 
     return (
         <div className="max-w-4xl mx-auto space-y-8 pb-20">
@@ -41,7 +64,9 @@ export default async function LessonPage({ params }: { params: { lessonId: strin
                     <span className="text-zinc-400 text-sm">Adaptiv angepasst für: {disg}-{vark}</span>
                 </div>
                 <h1 className="text-4xl font-bold text-zinc-900 dark:text-white">{lesson.title}</h1>
-                <p className="mt-4 text-xl text-zinc-600 dark:text-zinc-300">{lesson.subtitle}</p>
+                <p className="mt-4 text-xl text-zinc-600 dark:text-zinc-300">
+                    {lesson.meta_json?.disg_profile || 'Lerne diesen Einwand zu meistern.'}
+                </p>
             </div>
 
             {/* ADAPTIVE SECTION: DISG (Personality) */}
@@ -58,27 +83,23 @@ export default async function LessonPage({ params }: { params: { lessonId: strin
                 </h3>
 
                 <div className="prose dark:prose-invert">
-                    {disg === 'G' && (
-                        <div>
-                            <p>Vergiss emotionale Appelle. Der Kunde rechnet. Hier ist deine Strategie:</p>
-                            <ul className="list-disc pl-5 space-y-2">
-                                <li><strong>ROI-Berechnung:</strong> Zeige, dass das Tool 5.000€ spart, aber nur 500€ kostet.</li>
-                                <li><strong>Amortisationszeit:</strong> "In 2,5 Monaten haben Sie das Geld wieder drin."</li>
-                                <li><strong>Wettbewerbsvergleich:</strong> Wir sind 10% teurer, aber sparen 20% mehr Zeit durch Automation.</li>
-                            </ul>
-                            <div className="mt-4 p-4 bg-white dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700 font-mono text-sm">
-                                Kosten/Jahr:    5.000 €<br />
-                                Ersparnis/Jahr: 25.000 €<br />
-                                -----------------------<br />
-                                <span className="text-green-600 font-bold">Gewinn:        20.000 €</span>
-                            </div>
-                        </div>
-                    )}
+                    {/* Dynamic DISG Content */}
+                    <p className="text-lg italic mb-4">
+                        "<AdaptiveText initialText={rawStrategy} context={context} />"
+                    </p>
 
-                    {/* Fallbacks for other DISG types */}
-                    {disg === 'D' && <p>Kurz und knapp: Der Preis ist irrelevant, wenn das Ergebnis stimmt. Frag direkt: "Wollen Sie sparen oder Geld verdienen?"</p>}
-                    {disg === 'I' && <p>Erzähl ihm von Kunde Müller. Der fand es auch teuer, und jetzt fährt er Porsche dank uns!</p>}
-                    {disg === 'S' && <p>Ich verstehe Ihre Sorge. Lassen Sie uns gemeinsam schauen, wie wir das sicher in Ihr Budget bekommen.</p>}
+                    <div className="bg-white/50 dark:bg-black/20 p-4 rounded-lg">
+                        <h4 className="font-bold text-sm uppercase opacity-70 mb-2">Deine Strategie:</h4>
+                        <p>{lesson.disg_matrix?.[disg]?.tone || 'Sei professionell.'}</p>
+                    </div>
+
+                    <div className="mt-4">
+                        <h4 className="font-bold text-sm uppercase opacity-70 mb-2">Körpersprache & Wording:</h4>
+                        <p>{lesson.disg_matrix?.[disg]?.body_lang}</p>
+                        <p className="font-mono text-sm mt-2 bg-zinc-100 dark:bg-zinc-800 p-2 rounded">
+                            "{lesson.disg_matrix?.[disg]?.wording}"
+                        </p>
+                    </div>
                 </div>
             </div>
 
@@ -100,6 +121,8 @@ export default async function LessonPage({ params }: { params: { lessonId: strin
                     vark={vark}
                     disg={disg}
                     userId={user.id}
+                    varkContent={{ ...lesson.vark_content, [vark]: rawScenario }}
+                // context={context} // TODO: Update LessonInteractive to use context if we want deep adaptation inside options
                 />
             </div>
 

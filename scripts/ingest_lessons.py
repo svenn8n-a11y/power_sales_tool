@@ -8,37 +8,51 @@ from dotenv import load_dotenv
 from supabase import create_client, Client
 
 # Load environment variables
-load_dotenv('../App/.env.local')
+script_dir = Path(__file__).parent
+env_path = script_dir.parent / 'App' / '.env.local'
+print(f"Loading env from: {env_path.resolve()}")
+load_dotenv(env_path)
 
 url: str = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
-key: str = os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY")
-# For write access, we might need SERVICE_ROLE_KEY if RLS blocks anon writes.
-# But for now, let's try ANON (if RLS allows insert for user, but script is not user).
-# Ideally, user should provide SERVICE_ROLE_KEY in .env.local for admin scripts.
+# Use Service Role Key for Admin Access (Bypass RLS)
 service_key: str = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") 
 
 if not url or not service_key:
     print("Error: Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in ../App/.env.local")
-    print("Please add SUPABASE_SERVICE_ROLE_KEY to your .env.local file (get it from Supabase Dashboard > Settings > API).")
     exit(1)
 
+# Auto-clean key (Handle "Prefix Key" or "Key " cases)
+if service_key:
+    if ' ' in service_key:
+        print("WARNING: Key contained spaces. Taking the last part as the valid key.")
+        service_key = service_key.split()[-1]
+    else:
+        service_key = service_key.strip()
+
+print(f"URL: {url}")
 supabase: Client = create_client(url, service_key)
 
-SOURCE_DIR = "../GitHub_Collaboration/output/batch_1" # Start with batch 1
+# Define Batches
+BASE_PATH = "../GitHub_Collaboration/output"
 
 def parse_markdown(content):
     """
     Parses a specialized Sales Academy Markdown file into structured data.
     """
     lines = content.split('\n')
+    # Robust Title Extraction
     title = lines[0].replace('# ', '').strip()
-    slug = title.split(':')[0].strip().replace('#', '').lower() # e.g., p007
+    if ':' in title:
+        slug = title.split(':')[0].strip().replace('#', '').lower() # e.g., p007
+    else:
+        # Fallback if title format is different
+        slug = title.replace(' ', '-').lower()[:20]
     
     # Extract Metadata
     meta = {}
-    for line in lines[:10]:
+    for line in lines[:15]: # Scan first 15 lines
         if "**Häufigkeit:**" in line:
-            meta['frequency'] = line.split('⭐')[1].strip() if '⭐' in line else line
+            meta['frequency'] = line.split('⭐')[1].strip() if '⭐' in line else line.split(':**')[1].strip()
         if "**DISG-Profile:**" in line:
             meta['disg_profile'] = line.split(':')[1].strip()
             
@@ -61,8 +75,9 @@ def parse_markdown(content):
          
     # Parse DISG Matrix (Markdown Table to JSON)
     disg_matrix = {}
-    if 'DISG-Variations-Matrix' in sections:
-        table_lines = sections['DISG-Variations-Matrix'].split('\n')
+    matrix_section = sections.get('DISG-Variations-Matrix')
+    if matrix_section:
+        table_lines = matrix_section.split('\n')
         # Skip header and separator
         data_rows = [l for l in table_lines if '|' in l and '---' not in l and 'Typ' not in l]
         for row in data_rows:
@@ -76,8 +91,7 @@ def parse_markdown(content):
                     "intent": cols[4] if len(cols) > 4 else ""
                 }
 
-    # Construct Vark Content (Derived/Mocked for now since not explicit in MD)
-    # Strategy: Use specific sections for specific types
+    # Construct Vark Content 
     vark_content = {
         "V": sections.get('Visualisierung') or "Video coming soon...",
         "A": sections.get('Audio-Skript') or "Audio coming soon...",
@@ -96,14 +110,18 @@ def parse_markdown(content):
     }
 
 def ingest_file(filepath):
+    # Skip INDEX files
+    if "INDEX.md" in filepath or "README" in filepath:
+        return
+
     print(f"Processing {filepath}...")
-    with open(filepath, 'r') as f:
-        content = f.read()
-        
-    data = parse_markdown(content)
-    
-    # Upsert into DB
     try:
+        with open(filepath, 'r') as f:
+            content = f.read()
+            
+        data = parse_markdown(content)
+        
+        # Upsert into DB
         response = supabase.table('lessons').upsert({
             "slug": data['slug'],
             "title": data['title'],
@@ -113,17 +131,33 @@ def ingest_file(filepath):
             "disg_matrix": data['disg_matrix'],
             "vark_content": data['vark_content']
         }, on_conflict='slug').execute()
-        print(f"✅ Imported: {data['title']}")
+        
+        print(f"✅ Imported: {data['slug']}")
     except Exception as e:
-        print(f"❌ Error inserting {data['title']}: {e}")
+        print(f"❌ Error importing {filepath}: {e}")
 
 def main():
-    # Find all MD files
-    files = glob.glob(os.path.join(SOURCE_DIR, "*.md"))
-    print(f"Found {len(files)} files in {SOURCE_DIR}")
+    print("🚀 Starting Multi-Batch Ingestion (1-5)...")
     
-    for f in files:
-        ingest_file(f)
+    total_files = 0
+    batches = [f"batch_{i}" for i in range(1, 6)]
+    
+    for batch in batches:
+        batch_dir = os.path.join(BASE_PATH, batch)
+        if not os.path.exists(batch_dir):
+            print(f"⚠️ Batch folder not found: {batch_dir}")
+            continue
+            
+        print(f"\n📂 Scanning {batch}...")
+        files = glob.glob(os.path.join(batch_dir, "*.md"))
+        files.sort()
+        
+        print(f"Found {len(files)} files.")
+        for f in files:
+            ingest_file(f)
+            total_files += 1
+            
+    print(f"\n✨ DONE! Processed {total_files} files.")
 
 if __name__ == "__main__":
     main()

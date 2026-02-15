@@ -122,3 +122,36 @@ create table if not exists public.lessons (
 alter table public.lessons enable row level security;
 create policy "Public lessons are viewable by everyone." on public.lessons for select using (true);
 ```
+
+---
+
+## 🧠 Context Adapter (Product Customization)
+
+To make the generic sales training specific to the user's product, we introduce the **Context Adapter**.
+
+### 1. Data Model: Product Context
+We create a new table or add columns to `profiles` to store the user's selling context.
+
+```sql
+alter table public.profiles 
+add column product_name text,        -- e.g. "Cyber-Insurance"
+add column target_audience text,     -- e.g. "CTOs of Mid-Sized Tech Companies"
+add column price_point text,         -- e.g. "50k/year"
+add column usp text;                 -- e.g. "24/7 Response Team"
+```
+
+### 2. Adaptation Layer (AI-Powered)
+Instead of displaying raw Markdown, the `LessonPage` will pass the content through a `ContentAdapter`.
+
+**Flow:**
+1.  **Fetch Lesson:** Load generic lesson (e.g. "Zu teuer" with Workwear examples).
+2.  **Fetch Context:** Load user's product info (e.g. "Cybersafe 3000").
+3.  **Transform:**
+    - **Advanced (AI):** Send Prompt to LLM (Vercel AI SDK).
+    
+    > **Prompt:** "Rewrite the following sales objection examples. The original is about Workwear. The user sells 'Cyber-Insurance' to 'CTOs'. Keep the didactic structure (Validation -> ROI calculation) but adapt the examples."
+
+### 3. Implementation Logic
+1.  **Onboarding:** Ask for Product, Price, Target Audience.
+2.  **Storage:** Save to `profiles`.
+3.  **Delivery:** Use `Vercel AI SDK` (`generateText`) in `LessonPage` (Server Component) to adapt the specific "Scenario" and "Examples" parts.
