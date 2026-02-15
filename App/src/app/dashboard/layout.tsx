@@ -50,6 +50,26 @@ export default async function DashboardLayout({
                 <SidebarLinks />
 
                 <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
+                    <nav className="flex flex-col gap-2 mb-4">
+                        <Link
+                            href="/settings"
+                            className="flex items-center gap-3 p-3 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 transition-colors"
+                        >
+                            <Settings className="w-5 h-5" />
+                            <span className="font-medium">Einstellungen</span>
+                        </Link>
+
+                        {/* ADMIN LINK (Only for Sven & Admins) */}
+                        {(user?.email === 'sven.n8n@gmail.com' || user?.app_metadata?.role === 'service_role') && (
+                            <Link
+                                href="/admin"
+                                className="flex items-center gap-3 p-3 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 transition-colors mt-4 border border-red-100 dark:border-red-900/30"
+                            >
+                                <ShieldAlert className="w-5 h-5" />
+                                <span className="font-bold">Admin Area</span>
+                            </Link>
+                        )}
+                    </nav>
                     <form action="/auth/signout" method="post">
                         <button className="flex items-center gap-3 px-4 py-3 w-full text-zinc-600 hover:bg-zinc-100 rounded-xl dark:text-zinc-400 dark:hover:bg-zinc-900 transition-colors">
                             <LogOut className="w-5 h-5" />

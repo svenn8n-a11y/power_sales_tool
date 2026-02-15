@@ -211,6 +211,24 @@ export default async function TrainingPage() {
                 isLocked={false}
             />
 
+            {/* DEBUG SECTION (User Requested) */}
+            <div className="mt-20 p-8 bg-zinc-100 border border-zinc-300 rounded overflow-auto font-mono text-xs">
+                <h3 className="font-bold mb-2 text-red-600">🛠 DEBUG INFO</h3>
+                <p>Total Lessons: {lessons?.length}</p>
+                <p>Level 1 Count: {level1.length}</p>
+                <p>Level 2 Count: {level2.length}</p>
+                <p>Level 3 Count: {level3.length}</p>
+                <p>Level 4 Count: {level4.length}</p>
+                <div className="mt-4">
+                    <strong>Sample Slugs (First 10):</strong>
+                    <ul className="list-disc pl-4">
+                        {lessons?.slice(0, 10).map(l => (
+                            <li key={l.id}>{l.slug} (Level in DB: {l.level})</li>
+                        ))}
+                    </ul>
+                </div>
+            </div>
+
         </div>
     )
 }

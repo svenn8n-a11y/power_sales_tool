@@ -326,6 +326,12 @@ export default function LessonInteractive({ lessonId, userId, disgMatrix, fullCo
                 </div>
             )}
 
+            {/* DATA DEBUGGER */}
+            <div className="mt-12 p-4 bg-gray-100 rounded text-xs font-mono overflow-auto max-h-64 border border-gray-300">
+                <strong>DEBUG DATA (Matrix):</strong>
+                <pre>{JSON.stringify(disgMatrix, null, 2)}</pre>
+            </div>
+
         </div>
     )
 }
