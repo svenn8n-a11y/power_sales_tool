@@ -1,7 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { LayoutDashboard, BookOpen, Trophy, Settings, LogOut, LifeBuoy, Users, Brain, Book, ShieldAlert } from 'lucide-react'
+import { LayoutDashboard, BookOpen, Trophy, Settings, LogOut, LifeBuoy, Users, Brain, Book, Shield } from 'lucide-react'
 import LevelProgress from '@/components/dashboard/LevelProgress'
 import SidebarLinks from '@/components/dashboard/SidebarLinks'
 
@@ -65,7 +65,7 @@ export default async function DashboardLayout({
                                 href="/admin"
                                 className="flex items-center gap-3 p-3 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 transition-colors mt-4 border border-red-100 dark:border-red-900/30"
                             >
-                                <ShieldAlert className="w-5 h-5" />
+                                <Shield className="w-5 h-5" />
                                 <span className="font-bold">Admin Area</span>
                             </Link>
                         )}
