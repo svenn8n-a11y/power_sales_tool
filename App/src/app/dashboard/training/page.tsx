@@ -191,24 +191,40 @@ export default async function TrainingPage() {
         l.slug.length >= 4
     ) || []
 
-    const level1 = validLessons.filter(l => {
-        const s = l.slug.toUpperCase()
-        return l.level === 1 || (s >= 'P001' && s <= 'P012_Z') // _Z padding to include P012_something
-    })
+    // Level 1: 12 Placeholders ("Typ erkennen") - Requested by User
+    const level1 = Array.from({ length: 12 }).map((_, i) => ({
+        id: `dummy-l1-${i}`,
+        title: `Typ-Erkennung ${i + 1} (Coming Soon)`,
+        category: 'Awareness',
+        slug: '#',
+        level: 1,
+        created_at: new Date().toISOString(),
+        wording: 'Platzhalter',
+        is_active: false
+    }))
 
-    const level2 = validLessons.filter(l => {
-        const s = l.slug.toUpperCase()
-        return l.level === 2 || (s >= 'P031' && s <= 'P060_Z')
-    })
+    // Level 2 (Placeholders for 'Coming Soon')
+    const level2 = Array.from({ length: 12 }).map((_, i) => ({
+        id: `dummy-l2-${i}`,
+        title: `Szenario ${i + 13} (Coming Soon)`,
+        category: 'Einstieg & Pitch',
+        slug: '#',
+        level: 2,
+        created_at: new Date().toISOString(),
+        wording: 'Platzhalter',
+        is_active: false
+    }))
 
+    // Level 3: The Real Lessons (P001+) - Moved here!
     const level3 = validLessons.filter(l => {
         const s = l.slug.toUpperCase()
-        return l.level === 3 || (s >= 'P061' && s <= 'P100_Z')
+        // Include P001 and all others (Assuming P = Level 3 Content "Einwände")
+        return s.startsWith('P') || l.level >= 3
     })
 
     const level4 = validLessons.filter(l => {
         const s = l.slug.toUpperCase()
-        return l.level === 4 || s >= 'P101'
+        return l.level === 4 || s.startsWith('C') // Example prefix for Closing
     })
 
     // 5. BADGE LOGIC: CHECK LEVEL 1 COMPLETION & STREAK 3
