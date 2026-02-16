@@ -184,11 +184,11 @@ export default async function TrainingPage() {
 
     // 4. Manual Grouping (Robust & Case Insensitive)
 
-    // Helper to clean up junk (e.g. 'batch 1', 'p001' duplicates)
-    // We only want slugs that look like 'p001_...' OR are clearly valid.
+    // Helper to clean up junk (e.g. 'batch 1')
+    // We want all valid lessons, even if slug is short (e.g. 'p001' is 4 chars)
     const validLessons = lessons?.filter(l =>
         !l.slug.startsWith('batch') &&
-        l.slug.length > 5 // "p001" is 4 chars, "p001_" is 5+. 
+        l.slug.length >= 4
     ) || []
 
     const level1 = validLessons.filter(l => {
