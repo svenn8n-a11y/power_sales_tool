@@ -1,12 +1,14 @@
 import { ChevronDown, BookOpen, Brain, Target, BarChart2 } from 'lucide-react'
+import ROICalculator from '@/components/dashboard/ROICalculator'
 
 interface DeepContentProps {
     content: any
     selectedDisg: string | null
+    disgContent?: any // NEW: Specific data for the selected type
 }
 
-export default function DeepContent({ content, selectedDisg }: DeepContentProps) {
-    if (!content) return null
+export default function DeepContent({ content, selectedDisg, disgContent }: DeepContentProps) {
+    if (!content && !disgContent) return null
 
     // Helper to get color based on selected type
     const getHeaderColor = () => {
@@ -36,6 +38,17 @@ export default function DeepContent({ content, selectedDisg }: DeepContentProps)
         return html
     }
 
+    // Determine Content Source
+    const psychologyText = disgContent?.psychology || content?.psychology_md
+
+    // Format Framework Dictionary to Markdown if coming from disgContent
+    let frameworkText = content?.framework_md
+    if (disgContent?.response_framework) {
+        frameworkText = Object.entries(disgContent.response_framework)
+            .map(([k, v]) => `**${k}:** ${v}`)
+            .join('\n\n')
+    }
+
     return (
         <div className="space-y-6 mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
@@ -46,7 +59,7 @@ export default function DeepContent({ content, selectedDisg }: DeepContentProps)
                     <h3 className="font-bold text-zinc-800 dark:text-zinc-200">Psychologische Analyse</h3>
                 </div>
                 <div className="p-6 text-zinc-700 dark:text-zinc-300 leading-relaxed">
-                    <div dangerouslySetInnerHTML={{ __html: formatMarkdown(content.psychology_md) }} />
+                    <div dangerouslySetInnerHTML={{ __html: formatMarkdown(psychologyText) }} />
                 </div>
             </div>
 
@@ -57,7 +70,7 @@ export default function DeepContent({ content, selectedDisg }: DeepContentProps)
                     <h3 className="font-bold text-zinc-800 dark:text-zinc-200">Lösungs-Strategie (Framework)</h3>
                 </div>
                 <div className="p-6 text-zinc-700 dark:text-zinc-300 leading-relaxed">
-                    <div dangerouslySetInnerHTML={{ __html: formatMarkdown(content.framework_md) }} />
+                    <div dangerouslySetInnerHTML={{ __html: formatMarkdown(frameworkText) }} />
                 </div>
             </div>
 
@@ -70,6 +83,13 @@ export default function DeepContent({ content, selectedDisg }: DeepContentProps)
                     </div>
                     <div className="p-6 text-zinc-700 dark:text-zinc-300 leading-relaxed">
                         <div dangerouslySetInnerHTML={{ __html: formatMarkdown(content.metrics_md) }} />
+
+                        {/* Interactive ROI Calculator for P001 */}
+                        {(content.metrics_md.includes('75-Minuten-Jacke') || content.metrics_md.includes('ROI-Kalkulation')) && (
+                            <div className="mt-8">
+                                <ROICalculator />
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

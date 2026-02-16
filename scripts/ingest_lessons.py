@@ -73,8 +73,10 @@ def parse_markdown(content):
     if current_section:
          sections[current_section] = '\n'.join(buffer).strip()
          
-    # Parse DISG Matrix (Markdown Table to JSON)
+    # Parse DISG Matrix (Markdown Table OR Structured Sections)
     disg_matrix = {}
+    
+    # 1. Try Legacy Table Parsing
     matrix_section = sections.get('DISG-Variations-Matrix')
     if matrix_section:
         table_lines = matrix_section.split('\n')
@@ -90,6 +92,56 @@ def parse_markdown(content):
                     "body_lang": cols[3],
                     "intent": cols[4] if len(cols) > 4 else ""
                 }
+
+    # 2. Try New Structured Parsing (Enhanced Content)
+    # Check for any section with DISG in title
+    for sec_title, sec_content in sections.items():
+        if "DISG" in sec_title and "Matrix" in sec_title:
+            # Parse subsections (### Type)
+            parts = sec_content.split('### ')
+            for part in parts:
+                if not part.strip(): continue
+                
+                # Identify Type
+                header = part.split('\n')[0]
+                type_key = None
+                if "Rot" in header or "Dominant" in header: type_key = "D"
+                elif "Gelb" in header or "Initiativ" in header: type_key = "I"
+                elif "Grün" in header or "Stetig" in header: type_key = "S"
+                elif "Blau" in header or "Gewissenhaft" in header: type_key = "G"
+                
+                if type_key:
+                    if type_key not in disg_matrix: disg_matrix[type_key] = {}
+                    
+                    # Extract Fields
+                    lines = part.split('\n')
+                    response_framework = {}
+                    in_framework = False
+                    
+                    for line in lines:
+                        line = line.strip()
+                        if line.startswith('**Kunde sagt:**'):
+                            val = line.split('**', 2)[2].strip().strip('"')
+                            disg_matrix[type_key]['wording'] = val
+                        elif line.startswith('**Psychologie:**'):
+                            val = line.split('**', 2)[2].strip()
+                            disg_matrix[type_key]['psychology'] = val
+                            disg_matrix[type_key]['intent'] = val # Fallback/Alias
+                        elif line.startswith('**Response-Framework:**'):
+                            in_framework = True
+                        elif in_framework and line.startswith('- **'):
+                            # Format: - **Key:** "Value"
+                            match = re.match(r'- \*\*(.*?):\*\* (.*)', line)
+                            if match:
+                                k = match.group(1).strip()
+                                v = match.group(2).strip().strip('"')
+                                response_framework[k] = v
+                        elif line.startswith('#') or line.startswith('**'):
+                            if not line.startswith('**Response-Framework'):
+                                in_framework = False
+                                
+                    if response_framework:
+                        disg_matrix[type_key]['response_framework'] = response_framework
 
     # Construct Vark Content 
     vark_content = {

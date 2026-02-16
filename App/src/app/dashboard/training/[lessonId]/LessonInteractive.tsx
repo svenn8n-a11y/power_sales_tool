@@ -47,6 +47,14 @@ export default function LessonInteractive({ lessonId, userId, disgMatrix, fullCo
             const data = disgMatrix[type]
             if (!data) return "Keine Daten."
 
+            // NEW: Use Response Framework if available (Prioritize Anchor)
+            if (data.response_framework) {
+                if (data.response_framework['Anchor']) return "⚓️ " + data.response_framework['Anchor']
+                if (data.response_framework['Power-Satz']) return "💪 " + data.response_framework['Power-Satz']
+                // Fallback: Use the first available value
+                return Object.values(data.response_framework)[0] as string
+            }
+
             if (useIntentAsAnswer) {
                 return data.intent || "Strategie..."
             } else {
@@ -273,7 +281,11 @@ export default function LessonInteractive({ lessonId, userId, disgMatrix, fullCo
                                 <Trophy className="w-6 h-6" />
                                 <span>Klasse! Framework freigeschaltet.</span>
                             </div>
-                            <DeepContent content={fullContent} selectedDisg={selectedType} />
+                            <DeepContent
+                                content={fullContent}
+                                selectedDisg={selectedType}
+                                disgContent={disgMatrix[selectedType]} // Pass specific data
+                            />
                         </div>
                     )}
                 </div>
