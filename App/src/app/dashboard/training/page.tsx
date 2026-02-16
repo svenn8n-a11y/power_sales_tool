@@ -211,6 +211,33 @@ export default async function TrainingPage() {
         return l.level === 4 || s >= 'P101'
     })
 
+    // 5. BADGE LOGIC: CHECK LEVEL 1 COMPLETION & STREAK 3
+    if (user) {
+        // A) Level 1 Master
+        const hasLevel1Badge = badgesData.some((b: any) => b.badge_id === 'level_1_master')
+        // Only check if NOT yet earned and Level 1 has lessons
+        if (!hasLevel1Badge && level1.length > 0) {
+            // Check if ALL level 1 lessons are completed
+            const completedLevel1 = level1.every(l => {
+                const p = progressMap.get(l.id)
+                return p && p.completed
+            })
+
+            if (completedLevel1) {
+                await supabase.from('user_badges').insert({ user_id: user.id, badge_id: 'level_1_master' })
+                // Push simple object to show immediately in UI
+                badgesData.push({ badge_id: 'level_1_master', badges: { name: 'Typ-Versteher', icon: 'Brain' } })
+            }
+        }
+
+        // B) Streak 3 Days
+        const hasStreakBadge = badgesData.some((b: any) => b.badge_id === 'streak_3')
+        if (streakData && !hasStreakBadge && streakData.current_streak >= 3) {
+            await supabase.from('user_badges').insert({ user_id: user.id, badge_id: 'streak_3' })
+            badgesData.push({ badge_id: 'streak_3', badges: { name: 'Feuer und Flamme', icon: 'Flame' } })
+        }
+    }
+
     return (
         <div className="max-w-7xl mx-auto pb-20 space-y-8">
 
