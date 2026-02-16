@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import Link from 'next/link'
 import { BookOpen, CheckCircle, Star, Lock, Trophy, HandMetal, MessageCircle, Brain } from 'lucide-react'
+import GamificationStats from '@/components/dashboard/GamificationStats'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -103,6 +104,65 @@ export default async function TrainingPage() {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
+    // 0. GAMIFICATION LOGIC (Streak Update)
+    let streakData = null
+    let badgesData = []
+
+    if (user) {
+        // Fetch Streak
+        const { data: streak } = await supabase.from('user_streaks').select('*').eq('user_id', user.id).single()
+
+        const today = new Date().toISOString().split('T')[0]
+        const lastActivity = streak?.last_activity_date
+
+        if (streak) {
+            // Update Logic
+            if (lastActivity !== today) {
+                // Check if yesterday was active
+                const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+                const isConsecutive = lastActivity === yesterday
+
+                const newStreak = isConsecutive ? (streak.current_streak + 1) : 1
+                const newMax = Math.max(newStreak, streak.max_streak)
+
+                await supabase.from('user_streaks').update({
+                    current_streak: newStreak,
+                    max_streak: newMax,
+                    last_activity_date: today,
+                    updated_at: new Date().toISOString()
+                }).eq('user_id', user.id)
+
+                streakData = { ...streak, current_streak: newStreak } // Optimistic update
+            } else {
+                streakData = streak
+            }
+        } else {
+            // Init Streak
+            const { data: newStreak } = await supabase.from('user_streaks').insert({
+                user_id: user.id,
+                current_streak: 1,
+                max_streak: 1,
+                last_activity_date: today
+            }).select().single()
+            streakData = newStreak
+        }
+
+        // Fetch Badges
+        const { data: badges } = await supabase.from('user_badges').select('*, badges(*)').eq('user_id', user.id)
+        badgesData = badges || []
+
+        // CHECK BADGE: First Login
+        if (badgesData.length === 0) {
+            // Try to award 'first_login'
+            const { error } = await supabase.from('user_badges').insert({ user_id: user.id, badge_id: 'first_login' })
+            if (!error) {
+                // re-fetch to show immediately
+                const { data: b } = await supabase.from('user_badges').select('*, badges(*)').eq('user_id', user.id)
+                badgesData = b || []
+            }
+        }
+    }
+
     // 1. Load Lessons
     const { data: lessons } = await supabase
         .from('lessons')
@@ -152,28 +212,17 @@ export default async function TrainingPage() {
     })
 
     return (
-        <div className="max-w-7xl mx-auto pb-20 space-y-12">
+        <div className="max-w-7xl mx-auto pb-20 space-y-8">
 
-            {/* Header Stats */}
-            <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-zinc-900 text-white p-8 rounded-3xl shadow-2xl relative overflow-hidden">
-                <div className="relative z-10">
-                    <h1 className="text-4xl font-black tracking-tight mb-2">Training Center 🥋</h1>
-                    <p className="text-zinc-400">Meistere die 4 Stufen des Verkaufs.</p>
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                <div>
+                    <h1 className="text-4xl font-black tracking-tight text-zinc-900 dark:text-white">Training Center 🥋</h1>
+                    <p className="text-zinc-500">Meistere die 4 Stufen des Verkaufs.</p>
                 </div>
-
-                <div className="flex gap-8 relative z-10">
-                    <div className="text-center">
-                        <div className="text-3xl font-black text-yellow-400">{totalPoints}</div>
-                        <div className="text-xs uppercase font-bold tracking-wider opacity-60">XP Punkte</div>
-                    </div>
-                    <div className="text-center">
-                        <div className="text-3xl font-black text-indigo-400">{completedLessons}/{totalLessons}</div>
-                        <div className="text-xs uppercase font-bold tracking-wider opacity-60">Lektionen</div>
-                    </div>
-                </div>
-
-                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/20 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
             </div>
+
+            {/* GAMIFICATION WIDGET */}
+            <GamificationStats streak={streakData} badges={badgesData} totalXp={totalPoints} />
 
             {/* LEVELS */}
             <LevelSection
