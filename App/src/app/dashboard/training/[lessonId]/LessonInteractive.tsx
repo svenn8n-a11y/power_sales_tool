@@ -6,6 +6,7 @@ import { CheckCircle, Trophy, XCircle, ChevronRight, Star } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import DeepContent from './DeepContent'
 import confetti from 'canvas-confetti'
+import { generateFlashcardsForLesson } from '@/app/actions/spaced_repetition'
 
 interface LessonInteractiveProps {
     lessonId: string
@@ -135,6 +136,12 @@ export default function LessonInteractive({ lessonId, userId, disgMatrix, fullCo
             }, { onConflict: 'user_id, lesson_id' })
 
             if (isNowComplete) {
+                // Trigger for all 4 types
+                // We cast to any to avoid strict type checks on the matrix structure for now
+                Object.values(disgMatrix as any).forEach((data: any) => {
+                    generateFlashcardsForLesson(lessonId, data)
+                })
+
                 router.refresh()
             }
         } catch (err) {
